@@ -100,6 +100,7 @@ instupdate() {
   if [ "x${VERSION}" = "x" -o "${VERSION}" = "latest" ]; then
     VERSION="$(latest_release)"
     . "${WORKDIR}/tools/${TOOL}.conf"
+    [ -n "${INSTDIRNAME}" ] || INSTDIRNAME="${ZIPDIRNAME}"
   fi
   check_installed
   case "$?" in
@@ -134,10 +135,14 @@ instupdate() {
   if [ -L "/usr/bin/${EXECBIN}" ]; then
     msg "Symlink '/usr/bin/${EXECBIN}' OK"
   else
-    local sudo="sudo"
-    [ "$(id -un)" = "root" ] && sudo=""
-    debug "Creating symlink '/usr/bin/${EXECBIN}' -> '${INSTALLDIR}/${INSTDIRNAME}/${EXECBIN}'"
-    ${sudo} ln -sv "${INSTALLDIR}/${INSTDIRNAME}/${EXECBIN}" "/usr/bin/${EXECBIN}"
+    if [ -n "${EXECBIN}" ]; then
+      local sudo="sudo"
+      [ "$(id -un)" = "root" ] && sudo=""
+      debug "Creating symlink '/usr/bin/${EXECBIN}' -> '${INSTALLDIR}/${INSTDIRNAME}/${EXECBIN}'"
+      if [ -n "${EXECBIN}" ]; then
+        ${sudo} ln -sv "${INSTALLDIR}/${INSTDIRNAME}/${EXECBIN}" "/usr/bin/${EXECBIN}"
+      fi
+    fi
   fi
 }
 
@@ -194,7 +199,6 @@ msg "Git URL : ${GITURL}"
 eval ZIPNAME=\"${ZIPNAME}\"
 eval ZIPDIRNAME=\"${ZIPNAME}\"
 eval INSTDIRNAME=\"${INSTDIRNAME}\"
-[ -n "${INSTDIRNAME}" ] || INSTDIRNAME="${ZIPDIRNAME}"
 eval EXECBIN=\"${EXECBIN}\"
 
 msg "Mode '${MODE}'"

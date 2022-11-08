@@ -25,10 +25,10 @@ Check fpvtools.sh usage with :
  * betaflight : betaflight-configurator, flash/configure betaflight firmware
  * blheli32 : BlHeli32Suite, flash/configure BLHeli32 ESCs
  * blheli : blheli-configurator, flash/configure blheli ESCs
- * edgetx-sdcard : EdgeTX SDcard, prepare a SD card for user with EdgeTX radios
+ * edgetx-sdcard : EdgeTX SDcard, prepare a SD card for user with EdgeTX radios (TODO, include sound packs)
  * emuflight : emuflight-configurator, flash/configure EMUflight firmware
  * expresslrs : expresslrs-configurator, compile/flash ExpressLRS TX/RXs
  * inav : inav-configurator, flash/configure INAV firmware
  * jesc : jesc-configurator, flash/configure JESC ESCs
- * gyroflow (soon) : video stabilisation with gyro logs
+ * gyroflow : video stabilisation with gyro logs
  
