@@ -131,6 +131,8 @@ instupdate() {
       ln -sv "${INSTDIRNAME}-${VERSION}" "${INSTALLDIR}/${INSTDIRNAME}"
     fi
   fi
+  # Check that binary is executable
+  [ -x "${INSTALLDIR}/${INSTDIRNAME}/${EXECBIN}" ] || chmod 755 "${INSTALLDIR}/${INSTDIRNAME}/${EXECBIN}"
   # Check Binary symlink
   if [ -L "/usr/bin/${EXECBIN}" ]; then
     msg "Symlink '/usr/bin/${EXECBIN}' OK"
