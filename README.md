@@ -23,6 +23,7 @@ Check fpvtools.sh usage with :
 # Supported tools :
 
  * betaflight : betaflight-configurator, flash/configure betaflight firmware
+ * betaflight-bboxviewer : betaflight blackbox logs explorer, view your flights logs
  * blheli32 : BlHeli32Suite, flash/configure BLHeli32 ESCs
  * blheli : blheli-configurator, flash/configure blheli ESCs
  * edgetx-sdcard : EdgeTX SDcard, prepare a SD card for user with EdgeTX radios (TODO, include sound packs)
