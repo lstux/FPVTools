@@ -3,9 +3,9 @@ WORKDIR="$(realpath "$(dirname "${0}")")"
 TOOL=""
 VERSION="latest"
 MODE="instupdate"
-INSTALLDIR="/opt/fpvtools"
-TPMFILE="$(mktemp)"
-trap "rm -f ${TMPFILE}" EXIT
+INSTALLDIR="${INSTALLDIR:-/opt/fpvtools}"
+TPMDIR="$(mktemp -d)"
+trap "rm -rf ${TMPDIR}" EXIT
 
 VERBOSE="${VERBOSE:-false}"
 DEBUG="${DEBUG:-false}"
@@ -14,6 +14,8 @@ usage() {
   printf "Usage : $(basename "${0}") [options] tool\n"
   printf "  setup various FPV drone configuration tools\n"
   printf "  use '$(basename "${0}") ls' to list available tools\n"
+  printf "  tools are installed to '${INSTALLDIR}'\n"
+  printf "  set INSTALLDIR env var to adjust\n"
   printf "Options :\n"
   printf "  -V : specify a version [latest]\n"
   printf "  -l : show latest release version\n"
