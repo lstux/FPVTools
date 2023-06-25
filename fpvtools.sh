@@ -3,7 +3,7 @@ WORKDIR="$(realpath "$(dirname "${0}")")"
 TOOL=""
 VERSION="latest"
 MODE="instupdate"
-INSTALLDIR="${INSTALLDIR:-/opt/fpvtools}"
+INSTALLDIR="${FPV_INSTALLDIR:-/opt/fpvtools}"
 TPMDIR="$(mktemp -d)"
 trap "rm -rf ${TMPDIR}" EXIT
 
@@ -15,7 +15,7 @@ usage() {
   printf "  setup various FPV drone configuration tools\n"
   printf "  use '$(basename "${0}") ls' to list available tools\n"
   printf "  tools are installed to '${INSTALLDIR}'\n"
-  printf "  set INSTALLDIR env var to adjust\n"
+  printf "  set FPV_INSTALLDIR env var to adjust\n"
   printf "Options :\n"
   printf "  -V : specify a version [latest]\n"
   printf "  -l : show latest release version\n"
@@ -156,7 +156,7 @@ uninstall() {
   return 1
 }
 
-while getopts VlIirucRvdh opt; do case "${opt}" in
+while getopts V:lIirucRvdh opt; do case "${opt}" in
   V) VERSION="${OPTARG}";;
   l) MODE="latest";;
   I) MODE="instupdate";;
