@@ -135,6 +135,7 @@ instupdate() {
   fi
   # Check that binary is executable
   [ -x "${INSTALLDIR}/${INSTDIRNAME}/${EXECBIN}" ] || chmod 755 "${INSTALLDIR}/${INSTDIRNAME}/${EXECBIN}"
+  find "${INSTALLDIR}/${INSTDIRNAME}" -type f | while read f; do file "${f}" | grep -q "executable" && chmod 755 "${f}"; done
   # Check Binary symlink
   if [ -L "/usr/bin/${EXECBIN}" ]; then
     msg "Symlink '/usr/bin/${EXECBIN}' OK"
