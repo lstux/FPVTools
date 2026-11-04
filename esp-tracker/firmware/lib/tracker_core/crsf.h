@@ -69,5 +69,19 @@ struct CrsfAttitude {
 };
 bool crsf_decode_attitude(const CrsfFrame &f, CrsfAttitude *out);
 
+// 0x07: standalone vertical speed (GPS-based variometers).
+bool crsf_decode_vario(const CrsfFrame &f, float *vspeed_ms);
+
+// 0x09: barometric altitude above the FC's power-on point, optionally with vertical speed.
+// altitude_packed (u16): bit15=0 -> decimetres + 10000 dm offset, bit15=1 -> metres.
+// The vertical speed is either the TBS/Betaflight/iNav packed int8 (3-byte payload,
+// v = sign * (exp(|p| * 0.026) - 1) * 100 cm/s) or a plain int16 cm/s (4-byte payload).
+struct CrsfBaro {
+    float alt_m;
+    bool has_vspeed;
+    float vspeed_ms;
+};
+bool crsf_decode_baro(const CrsfFrame &f, CrsfBaro *out);
+
 // Copies the (NUL-terminated) flight mode string, truncating to outLen-1.
 bool crsf_decode_flight_mode(const CrsfFrame &f, char *out, size_t outLen);

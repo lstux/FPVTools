@@ -9,6 +9,11 @@ from esptracker.server import create_app
 from esptracker.sources import Source
 from esptracker.state import State
 from esptracker.tiles import MBTiles
+from esptracker.video import VideoSource
+from esptracker.weather import Weather
+from test_video import fake_camera_cmd
+
+WX_FIXTURE = Path(__file__).parent / "fixtures" / "openmeteo_sample.json"
 
 FIXTURE = Path(__file__).parent / "fixtures" / "firmware_events.jsonl"
 
@@ -171,3 +176,57 @@ def test_mbtiles_validation(tmp_path: Path):
     make_mbtiles(vec, fmt="pbf")
     with pytest.raises(ValueError, match="vector"):
         MBTiles(str(vec))
+
+
+def test_video_disabled_by_default(env):
+    _st, _src, client = env
+    info = client.get("/api/video").json()
+    assert info["enabled"] is False and isinstance(info["devices"], list)
+    assert client.get("/api/config").json()["video"] is None
+    assert client.get("/video.mjpg").status_code == 404
+
+
+def test_video_snapshot_and_info():
+    st = State()
+    video = VideoSource(command=fake_camera_cmd(200), idle_stop_s=0.2)
+    with TestClient(create_app(st, FakeSource(st), video=video)) as client:
+        assert client.get("/api/config").json()["video"]["enabled"] is True
+        r = client.get("/video.jpg")
+        assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
+        assert r.content.startswith(b"\xff\xd8") and r.content.endswith(b"\xff\xd9")
+
+
+def test_video_snapshot_error_when_capture_fails():
+    st = State()
+    video = VideoSource(command=["false"], idle_stop_s=0.2)
+    with TestClient(create_app(st, FakeSource(st), video=video)) as client:
+        r = client.get("/video.jpg")
+        assert r.status_code == 503
+
+
+def test_weather_endpoint_uses_home_then_drone(tmp_path):
+    raw = json.loads(WX_FIXTURE.read_text())
+    urls = []
+
+    def fetch(url):
+        urls.append(url)
+        return raw
+
+    st = State()
+    w = Weather(tmp_path / "wx.json", fetch=fetch, clock=lambda: 1793750400 + 3600)
+    with TestClient(create_app(st, FakeSource(st), weather=w)) as client:
+        assert client.get("/api/config").json()["weather"] is True
+        assert client.get("/api/weather").status_code == 400  # no position yet
+        st.ingest({"e": "gps", "lat": 45.1, "lon": 5.7, "alt": 300, "gs": 0, "hdg": 0, "sats": 10})
+        r = client.get("/api/weather")
+        assert r.status_code == 200 and r.json()["place"] == "drone" and "latitude=45.1000" in urls[-1]
+        st.ingest({"e": "trk", "home": True, "hlat": 48.0, "hlon": 2.0, "halt": 80, "mode": "auto"})
+        body = client.get("/api/weather?refresh=1").json()
+        assert body["place"] == "home" and "latitude=48.0000" in urls[-1]
+        assert body["hours"][0]["wind"][0]["agl"] == 10.0 and body["source"].startswith("Open-Meteo")
+        assert client.get("/api/weather?lat=95&lon=0").status_code == 502
+
+
+def test_weather_disabled(env):
+    _st, _src, client = env
+    assert client.get("/api/weather?lat=1&lon=1").status_code == 404

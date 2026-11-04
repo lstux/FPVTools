@@ -185,6 +185,16 @@ static void handleCrsf(const uint8_t *data, size_t n, uint32_t now)
         if (crsf_decode_attitude(f, &a)) emit(json_attitude(outBuf, sizeof(outBuf), now, a));
         break;
     }
+    case CRSF_TYPE_VARIO: {
+        float vs;
+        if (crsf_decode_vario(f, &vs)) emit(json_vario(outBuf, sizeof(outBuf), now, vs));
+        break;
+    }
+    case CRSF_TYPE_BARO_ALT: {
+        CrsfBaro b;
+        if (crsf_decode_baro(f, &b)) emit(json_baro(outBuf, sizeof(outBuf), now, b));
+        break;
+    }
     case CRSF_TYPE_FLIGHT_MODE: {
         char mode[24];
         if (crsf_decode_flight_mode(f, mode, sizeof(mode))) emit(json_flight_mode(outBuf, sizeof(outBuf), now, mode));

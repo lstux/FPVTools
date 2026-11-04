@@ -46,7 +46,9 @@ CRC over `type … payload`. Multi-byte values are big endian. Decoded frames:
 | Type | Name | Payload layout | JSON event |
 | --- | --- | --- | --- |
 | `0x02` | GPS | lat int32 (°·1e7), lon int32, groundspeed u16 (0.1 km/h), heading u16 (0.01°), altitude u16 (m + 1000), sats u8 | `gps` |
+| `0x07` | Vario | vertical speed i16 (cm/s) | `vario` |
 | `0x08` | Battery | voltage u16 (0.1 V), current u16 (0.1 A), capacity u24 (mAh), remaining u8 (%) | `bat` |
+| `0x09` | Baro altitude | altitude u16: bit 15 = 0 → dm + 10000 dm offset, bit 15 = 1 → m; optional vertical speed: i8 packed `sign·(e^(|v|·0.026) − 1)·100` cm/s (Betaflight/iNav, 3-byte payload) or i16 cm/s (4-byte payload) | `baro` |
 | `0x14` | Link statistics | up RSSI1 (−dBm), up RSSI2, up LQ, up SNR i8, antenna, rf mode, tx power index, down RSSI (−dBm), down LQ, down SNR i8 | `link` |
 | `0x1E` | Attitude | pitch, roll, yaw: i16, rad·10000 | `att` |
 | `0x21` | Flight mode | NUL-terminated string | `mode` |
@@ -128,6 +130,8 @@ Lines of UTF-8, `\n` terminated. Anything that is not a JSON object (boot ROM me
 | `bat` | `ms v a mah pct` |
 | `link` | `ms rssi1 rssi2 lq snr ant rfmode txpwr drssi dlq dsnr` |
 | `att` | `ms pitch roll yaw` (deg) |
+| `vario` | `ms vs` (m/s) |
+| `baro` | `ms alt` (m above the FC's power-on point) and `vs` (m/s) when the FC sends it |
 | `mode` | `ms m` (flight mode text) |
 | `trk` | `ms mode home hlat hlon halt tracking pan tilt tpan ttilt flip gps_age az el dist dist3d` (`az el dist dist3d` are null until home and GPS are known; `tpan/ttilt` are the targets, `pan/tilt` the current slewed angles) |
 | `stat` | `ms espnow msp_ok msp_bad crsf_ok crsf_bad crsf_other dropped` |
@@ -149,7 +153,10 @@ SerialSource | SimulatorSource | ReplaySource      (one thread each, push events
       State (lock-protected: latest event per kind, track ring buffer, console, flight stats) ──► EventLogger (JSONL)
         ▲                                   │
         │ Source.send(cmd)                  ▼
-   POST /api/cmd                     WebSocket /ws  (5 Hz: state + new track points + new console lines)
+   POST /api/cmd                     WebSocket /ws  (10 Hz: state + new track points + new console lines)
+
+VideoSource (ffmpeg → JPEG frames) ──► GET /video.mjpg (multipart), /video.jpg
+Weather (Open-Meteo, cache + disk copy) ──► GET /api/weather
 ```
 
 * `sources.py`: `SerialSource` reads bytes and splits lines itself (robust to partial lines), opens the port with
@@ -162,7 +169,23 @@ SerialSource | SimulatorSource | ReplaySource      (one thread each, push events
   gets exactly the points it has not seen and never loses sync, even after *Clear trail*.
 * `server.py` (FastAPI): `GET /api/state`, `GET /api/config`, `POST /api/cmd`, `POST /api/track/clear`,
   `GET /api/track.gpx`, `GET /tiles/{z}/{x}/{y}` (MBTiles, converting the XYZ row to TMS), `WS /ws`, and the static UI.
-* `static/`: no build step, Leaflet is vendored (works offline). The bind phrase is masked in the console echo.
+* `state.py` also guesses the armed state from the flight mode text and accumulates armed time (`flight.time_s`).
+* `video.py`: one ffmpeg process per ground station (`-f v4l2 -input_format mjpeg … -c:v copy -f mjpeg pipe:1`, so no
+  re-encode), started when the first viewer connects and stopped a few seconds after the last one leaves. A small parser
+  cuts the byte stream at SOI/EOI markers; each viewer always gets the newest frame, so a slow client drops frames
+  instead of adding delay. Many UVC dongles send "MJPEG" without Huffman tables (the AVI1 convention), which browsers
+  cannot decode, so the standard tables (JPEG Annex K, checked byte for byte against ffmpeg's) are inserted when missing.
+  Devices are listed from `/sys/class/video4linux` (only index 0 of each UVC device carries the picture). Errors from
+  ffmpeg (device busy, unsupported mode) are reported in `/api/video` and shown in the UI.
+* `weather.py`: one Open-Meteo request (`timeformat=unixtime`) for surface fields, wind at 10/80/120/180 m and wind +
+  geopotential height on 8 pressure levels. Pressure levels are turned into heights above the field (geopotential height −
+  model ground elevation) and dropped when below ground or overlapping the 180 m data. Answers are cached 15 minutes per
+  ~1 km cell, and the last good answer is written to disk; without network the API returns it with `stale: true`, its age
+  and the error. Every field is optional on read, so a model without e.g. visibility just shows a dash.
+* `static/`: no build step. Leaflet and the B612 fonts (Airbus's cockpit display typeface, SIL OFL) are vendored, so the UI
+  works offline. `hud.js` draws the head-up display on a canvas at the screen refresh rate, smoothing the 5–10 Hz telemetry
+  (exponential, shortest-way for angles; off with *reduced motion*); it shortens or moves the tapes so the mini-map never
+  hides the altitude. `app.js` does everything else. The bind phrase is masked in the console echo.
 * Security: the server listens on localhost by default. `--host 0.0.0.0` exposes unauthenticated control of the tracker to
   the network; use it on trusted networks only.
 
@@ -170,12 +193,14 @@ SerialSource | SimulatorSource | ReplaySource      (one thread each, push events
 
 | Suite | Command | Covers |
 | --- | --- | --- |
-| C++ core | `make -C firmware/tests test` | 247 checks, built with `-Wall -Wextra -Werror` and AddressSanitizer/UBSan: CRC check value, MD5 against `hashlib` vectors (incl. padding boundaries), UID parsing, MSP/CRSF parsing (corruption, truncation, oversize, back-to-back packets), all decoders, geodesy, pan/tilt flip + hysteresis, tracker engine (slew, quality gate, hold, manual/auto), command parser, config limits, JSON output |
+| C++ core | `make -C firmware/tests test` | 264 checks, built with `-Wall -Wextra -Werror` and AddressSanitizer/UBSan: CRC check value, MD5 against `hashlib` vectors (incl. padding boundaries), UID parsing, MSP/CRSF parsing (corruption, truncation, oversize, back-to-back packets), all decoders (incl. both baro vertical speed encodings), geodesy, pan/tilt flip + hysteresis, tracker engine (slew, quality gate, hold, manual/auto), command parser, config limits, JSON output |
 | Firmware glue | `make -C firmware/tests syntax` | `src/main.cpp` compiles (syntax and types) against stub Arduino-ESP32 headers for the three pin/LED variants |
-| Backend | `cd backend && pytest` | 48 tests: state/track/console logic fed with real firmware output, command validation, simulator, serial loopback, log/replay, REST, WebSocket, MBTiles, CLI errors |
-| UI | manual | Exercised in headless Chromium against the simulator (no JS errors, home/offset/manual/console/map-click flows) |
+| Backend | `cd backend && pytest` | 75 tests: state/track/console logic fed with real firmware output, armed timer, command validation, simulator, serial loopback, log/replay, REST, WebSocket, MBTiles, CLI errors, JPEG splitting and Huffman insertion, capture start/idle stop/errors (with a fake camera and with ffmpeg's test pattern), device discovery, weather parsing / wind profile / cache / offline fallback |
+| UI | manual | Exercised in headless Chromium against the simulator with `--video test` and a saved forecast: desktop, phone portrait and landscape, every panel, map/video swap; no JS errors |
 
-**Not verified**: a PlatformIO build of the three environments (toolchain downloads were not reachable where this was
+**Not verified**: a real HDMI dongle (only ffmpeg's test pattern and a fake camera were used), a live Open-Meteo answer
+(the parser follows the documented format; the test fixture is synthetic because the API was not reachable where this was
+written), a PlatformIO build of the three environments (toolchain downloads were not reachable where this was
 written), running on a real board, the actual ESP-NOW link with a GX12 Backpack, and servo behaviour. The stubs only model
 the Arduino-ESP32 calls used, so API mismatches with the real core would only show up at the first real build.
 

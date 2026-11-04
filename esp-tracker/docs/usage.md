@@ -96,9 +96,50 @@ Open <http://127.0.0.1:8080>. Useful options:
 | `--http-port 8080` | web port |
 | `--mbtiles map.mbtiles` | offline raster map tiles |
 | `--tile-url URL` | other online tile server (`{z}/{x}/{y}` template) |
+| `--video auto` / `--video /dev/video0` / `--video test` | show the goggles / VRX video behind the HUD (see [Video](#video-from-the-goggles-or-vrx)); `test` is an ffmpeg test pattern |
+| `--video-size 1920x1080 --video-fps 30` | capture mode, must be one the dongle offers [1280x720, 30] |
+| `--video-format yuyv422` | for a dongle without MJPEG (re-encoded, costs CPU) [mjpeg] |
+| `--no-weather` / `--weather-cache FILE` | disable the forecast panel / where the last forecast is kept [~/.cache/esptracker/weather.json] |
 
 The serial port is opened with DTR/RTS low so it does not reset the board. If the tracker is unplugged the
 application keeps retrying and reconnects by itself.
+
+### Video from the goggles or VRX
+
+Walksnail Avatar / Avatar VRX / Ascent Pro and HDZero goggles or VRX have an HDMI output. A cheap HDMI → USB capture
+dongle (MacroSilicon MS2109 / MS2130 and similar) shows up on Linux as a webcam (a *UVC* device, `/dev/video0`), no
+driver needed. Check it with:
+
+```sh
+sudo apt install ffmpeg v4l-utils
+v4l2-ctl --list-devices                         # find /dev/videoN of the dongle
+v4l2-ctl -d /dev/video0 --list-formats-ext      # modes it offers (look for MJPG)
+```
+
+Two ways to show it, picked in **Display → Video → Source**:
+
+* **Capture dongle on the ground station** (start with `--video auto` or `--video /dev/video0`): the backend runs ffmpeg
+  and relays the picture as MJPEG to every browser, including your phone. The dongle already produces MJPEG, so frames are
+  copied, not re-encoded: fine on a Raspberry Pi 3B. Capture only runs while somebody is watching. 720p30 is a good
+  default; 1080p works too but is 3–6 MB/s per viewer over Wi-Fi.
+* **Camera on this device**: the browser opens the dongle itself (plug it into the computer that shows the UI). Lowest
+  latency, nothing goes through the backend, but browsers only allow it on `http://localhost` or `https`.
+
+Expect ~50–150 ms of extra delay from the dongle: right for watching the flight and the HUD, not for flying through it.
+If HDZero/Walksnail outputs a mode the dongle cannot take (e.g. 1080p60 into an MS2109), set the goggles' HDMI output to
+720p/1080p30.
+
+### Weather
+
+The **Weather** panel uses [Open-Meteo](https://open-meteo.com) (free, no API key, CC BY 4.0) for the tracker position
+(or the drone's when no home is set): wind and direction at 10/80/120/180 m above ground plus higher levels up to about
+3 km (from the model's pressure levels), gusts, visibility, low/mid/high clouds, an estimated cloud base (from the dew
+point spread, an approximation), rain probability, CAPE (convection, thermals and storms), freezing level and
+sunrise/sunset, then the next 12 hours. Colours follow the two wind thresholds you set in **Display** (default 25 and
+40 km/h). OpenWeather gives wind and visibility only at ground level and needs an API key, which is why it is not used.
+
+The last forecast is saved on disk. At a field without internet the panel shows it with its age (fetch it at home before
+leaving, it covers the next 48 hours).
 
 ### Offline maps
 
@@ -129,13 +170,33 @@ WantedBy=multi-user.target
 
 ## 6. Using the interface
 
-* **Header**: USB link state, radio link quality, flight mode, GPS satellites.
-* **Map**: drone (arrow = heading), trail, tracker position (yellow dot) and the line between them. *Follow* keeps the
-  drone centred (dragging the map turns it off), *Fit* frames the whole trail, *Clear trail* resets the trail and the
-  flight statistics, *GPX* downloads the trail.
-* **Cards**: position, distance/azimuth/elevation from the tracker, radio link, battery, attitude, flight statistics and
-  the tracker device state. A card dims when its data is older than a few seconds.
-* **Tracker card**: see below. The **console** shows what the tracker answers and lets you type any command (`HELP`).
+The screen is laid out like a glass cockpit. Colours always mean the same thing: **green** normal, **amber** caution,
+**red** warning, **cyan** tracker / target values, **magenta** home and the way back, **yellow** the drone itself.
+
+* **Top strip**: tracker USB link, radio link (LQ and RSSI), drone GPS satellites, battery (pack and per-cell voltage),
+  flight mode, armed time, clock, and the panel buttons.
+* **Main view**: the video with the head-up display over it, or a synthetic horizon (blue sky / brown ground) when there
+  is no video. The HUD shows:
+  * pitch ladder and roll scale (from the FC attitude telemetry);
+  * heading tape at the top (GPS course when moving faster than 10 km/h, FC yaw otherwise) with a magenta caret at the
+    bearing to home, and below it a magenta arrow pointing home with the distance;
+  * ground speed tape on the left (km/h), altitude tape on the right with the vario bar and vertical speed. The altitude
+    is above home when the tracker home is set, else the FC baro altitude, else GPS altitude above sea level (choose in
+    **Display**);
+  * bottom left: flight mode, armed time, battery voltage per cell, mAh used; top right: LQ, RSSI, satellites;
+  * warnings in the middle: FAILSAFE, TELEMETRY LOST, LINK %, BATTERY, GPS SATS, NO TRACKER.
+* **Mini-map** bottom right: tap it (or press `S`) to swap map and video; the video then becomes the inset with a compact
+  HUD. On the map: the drone (yellow arrow), its trail (cyan), the tracker (magenta H) and the line home. *Follow* keeps
+  the drone centred (dragging the map turns it off), *Fit* frames the whole trail.
+* **Bottom strip**: distance home (2D and 3D), height, speed, current and mAh, tracker azimuth/elevation and state, RSSI and
+  SNR, wind at 120 m.
+* **Panels** (top right buttons): *Tracker* (home, pointing, manual sliders, save), *Weather*, *Link* (radio details,
+  flight statistics, reset trail, GPX download, raw position, tracker device counters), *Console* (what the tracker
+  answers, type any command, e.g. `HELP`) and *Display* (video source, night/day map, HUD altitude source, battery cell
+  count and low-cell voltage, wind thresholds, full screen). Display settings are remembered by the browser.
+
+Armed time is guessed from the flight mode text: Betaflight adds `*` while disarmed, iNav sends `OK`/`WAIT`. Battery cell
+count is guessed from the highest voltage seen (set it in **Display** if you plug a partly used pack).
 
 ### Telling the tracker where it is ("home")
 
@@ -144,10 +205,10 @@ the height difference to the drone.
 
 | Button | When to use it |
 | --- | --- |
-| **Home = drone** | Best: put the drone next to the tracker, wait for 6+ satellites, press it. Uses the drone's own GPS fix and altitude, so it is consistent with the telemetry. |
-| **Home = map click** | Click the map where the tracker stands. Altitude: the *Home alt* field, else the current home altitude, else the drone's altitude. Check it. |
-| **Home = this device** | Uses the browser's geolocation (needs `https` or `http://localhost`, so not over a plain LAN address). |
-| **Clear home** | Forget it; the tracker holds position. |
+| **Use drone position** | Best: put the drone next to the tracker, wait for 6+ satellites, press it. Uses the drone's own GPS fix and altitude, so it is consistent with the telemetry. |
+| **Pick on map** | Click the map where the tracker stands. Altitude: the *Altitude of the tracker* field, else the current home altitude, else the drone's altitude. Check it. |
+| **Use this device** | Uses the browser's geolocation (needs `https` or `http://localhost`, so not over a plain LAN address). |
+| **Clear** | Forget it; the tracker holds position. |
 
 `Save to tracker` stores the home, the offset and all settings in the board's flash so they survive a power cycle
 (otherwise home is forgotten at boot, which is usually what you want for a new site).
@@ -159,7 +220,7 @@ the height difference to the drone.
    `tilt_*`. Use `SET pan_invert 1` / `SET tilt_invert 1` if a servo moves the wrong way. Then `SAVE`.
 2. **Pan zero azimuth.** Point the pan servo at 0° (`AIM 0 0`) and measure the compass bearing the antenna now points
    to (a phone compass is fine; add your local magnetic declination, GPS bearings are relative to *true* north).
-   Enter it in *Pan zero azimuth* (or `SET offset 215`). Then `SAVE`.
+   Enter it in *Azimuth of the pan centre* (or `SET offset 215`). Then `SAVE`.
 3. **Check** in *Auto* mode with the drone (or `--simulate`): the tracker status says *tracking* and the antennas follow.
    Turning your body 180° around the tracker is a good test of the over-the-top flip near the pan limits.
 

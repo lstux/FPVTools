@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Response, WebSocket
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -17,12 +17,15 @@ from . import __version__
 from .sources import Source, validate_command
 from .state import State
 from .tiles import MBTiles
+from .video import VideoSource, list_devices
+from .weather import Weather
 
 log = logging.getLogger("esptracker.server")
 
 STATIC_DIR = Path(__file__).parent / "static"
 OSM_TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-WS_PERIOD_S = 0.2
+WS_PERIOD_S = 0.1
+MJPEG_BOUNDARY = "esptrackerframe"
 
 
 class CommandIn(BaseModel):
@@ -41,6 +44,8 @@ def create_app(
     source: Source,
     tiles: Optional[MBTiles] = None,
     tile_url: str = OSM_TILE_URL,
+    video: Optional[VideoSource] = None,
+    weather: Optional[Weather] = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -49,6 +54,8 @@ def create_app(
             yield
         finally:
             source.stop()
+            if video is not None:
+                video.close()
 
     app = FastAPI(title="esptracker", version=__version__, lifespan=lifespan)
 
@@ -66,6 +73,8 @@ def create_app(
             "read_only": source.read_only,
             "tile_url": tile_url,
             "local_tiles": None,
+            "video": video.info() if video is not None else None,
+            "weather": weather is not None,
         }
         if tiles is not None:
             out["local_tiles"] = tiles.info()
@@ -108,6 +117,75 @@ def create_app(
         return Response(
             gpx, media_type="application/gpx+xml", headers={"Content-Disposition": 'attachment; filename="flight.gpx"'}
         )
+
+    # ---- video -------------------------------------------------------------------------------
+
+    @app.get("/api/video")
+    def video_info() -> Dict[str, Any]:
+        out: Dict[str, Any] = video.info() if video is not None else {"enabled": False}
+        out["devices"] = list_devices()
+        return out
+
+    if video is not None:
+
+        @app.get("/video.mjpg", include_in_schema=False)
+        async def video_stream() -> StreamingResponse:
+            async def frames():
+                video.acquire()
+                seq = 0
+                try:
+                    while True:
+                        new_seq, frame = video.latest()
+                        if frame is None or new_seq == seq:
+                            await asyncio.sleep(0.008)
+                            continue
+                        seq = new_seq
+                        yield (
+                            b"--" + MJPEG_BOUNDARY.encode() + b"\r\nContent-Type: image/jpeg\r\nContent-Length: "
+                            + str(len(frame)).encode() + b"\r\n\r\n" + frame + b"\r\n"
+                        )
+                finally:
+                    video.release()
+
+            return StreamingResponse(
+                frames(),
+                media_type="multipart/x-mixed-replace; boundary=" + MJPEG_BOUNDARY,
+                headers={"Cache-Control": "no-cache, no-store", "X-Accel-Buffering": "no"},
+            )
+
+        @app.get("/video.jpg", include_in_schema=False)
+        def video_snapshot() -> Response:
+            video.acquire()
+            try:
+                _seq, frame = video.wait_frame(0, timeout=5.0)
+            finally:
+                video.release()
+            if frame is None:
+                raise HTTPException(status_code=503, detail=video.info().get("error") or "no video frame yet")
+            return Response(frame, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+    # ---- weather -----------------------------------------------------------------------------
+
+    @app.get("/api/weather")
+    def get_weather(lat: Optional[float] = None, lon: Optional[float] = None, refresh: bool = False) -> Dict[str, Any]:
+        if weather is None:
+            raise HTTPException(status_code=404, detail="weather disabled (--no-weather)")
+        place = "query"
+        if lat is None or lon is None:
+            snap = state.snapshot()
+            trk, gps = snap.get("trk"), snap.get("gps")
+            if trk and trk.get("home"):
+                lat, lon, place = trk["hlat"], trk["hlon"], "home"
+            elif gps and gps.get("sats", 0) >= 4 and not (gps.get("lat") == 0 and gps.get("lon") == 0):
+                lat, lon, place = gps["lat"], gps["lon"], "drone"
+            else:
+                raise HTTPException(status_code=400, detail="no position yet: set the tracker home or wait for a GPS fix")
+        try:
+            out = weather.get(float(lat), float(lon), force=refresh)
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail=str(exc))
+        out["place"] = place
+        return out
 
     if tiles is not None:
 

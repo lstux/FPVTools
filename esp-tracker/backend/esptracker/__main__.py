@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from pathlib import Path
 from typing import List, Optional
 
 import uvicorn
@@ -14,6 +15,10 @@ from .server import OSM_TILE_URL, create_app
 from .sources import EventLogger, ReplaySource, SerialSource, SimulatorSource, make_on_connect
 from .state import State
 from .tiles import MBTiles
+from .video import VideoSource, parse_size
+from .weather import Weather
+
+DEFAULT_WEATHER_CACHE = Path.home() / ".cache" / "esptracker" / "weather.json"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -26,6 +31,19 @@ def build_parser() -> argparse.ArgumentParser:
     src.add_argument("--speed", type=float, default=1.0, help="replay speed factor, or simulator time scale [1]")
     src.add_argument("--loop", action="store_true", help="loop the replay")
     src.add_argument("--home", metavar="LAT,LON,ALT", help="send 'HOME lat lon alt' to the tracker every time it connects")
+
+    vid = p.add_argument_group("video (HDMI/UVC capture dongle on the goggles or VRX)")
+    vid.add_argument("--video", metavar="DEV", default="off",
+                     help="'auto' (first capture device), a device such as /dev/video0, 'test' (ffmpeg test pattern) or 'off' [off]")
+    vid.add_argument("--video-size", default="1280x720", help="capture size, must be a mode the dongle offers [1280x720]")
+    vid.add_argument("--video-fps", type=int, default=30, help="capture frame rate [30]")
+    vid.add_argument("--video-format", default="mjpeg",
+                     help="v4l2 input format: mjpeg (copied, cheap) or e.g. yuyv422 (re-encoded, CPU heavy) [mjpeg]")
+
+    wx = p.add_argument_group("weather (Open-Meteo, needs internet; the last forecast is cached for offline use)")
+    wx.add_argument("--no-weather", action="store_true", help="disable the weather panel")
+    wx.add_argument("--weather-cache", metavar="FILE", default=str(DEFAULT_WEATHER_CACHE),
+                    help="where to keep the last forecast [%(default)s]")
 
     p.add_argument("--log", metavar="FILE", help="append every tracker event to FILE (JSON lines) for later --replay")
 
@@ -53,22 +71,29 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         on_connect = make_on_connect(args.home)  # validated whatever the source
         if args.simulate:
-            source = SimulatorSource(state, time_scale=args.speed)
+            source = SimulatorSource(state, time_scale=args.speed, on_connect=on_connect)
         elif args.replay:
             source = ReplaySource(state, args.replay, speed=args.speed, loop=args.loop)
         else:
             source = SerialSource(state, port=args.port or "auto", baud=args.baud, on_connect=on_connect)
         tiles = MBTiles(args.mbtiles) if args.mbtiles else None
         logger = EventLogger(args.log) if args.log else None
+        video = None
+        if args.video != "off":
+            if args.video_fps < 1 or args.video_fps > 240:
+                raise ValueError("--video-fps must be 1..240")
+            video = VideoSource(args.video, size=parse_size(args.video_size), fps=args.video_fps,
+                                input_format=args.video_format)
+        weather = None if args.no_weather else Weather(Path(args.weather_cache).expanduser())
     except (ValueError, OSError) as exc:
         print("error: %s" % exc, file=sys.stderr)
         return 2
-    if args.home and (args.simulate or args.replay):
-        logging.getLogger("esptracker").warning("--home is only sent to a real tracker (ignored with --simulate/--replay)")
+    if args.home and args.replay:
+        logging.getLogger("esptracker").warning("--home is ignored with --replay (the log already holds the tracker's home)")
     if logger:
         state.add_listener(logger)
 
-    app = create_app(state, source, tiles=tiles, tile_url=args.tile_url)
+    app = create_app(state, source, tiles=tiles, tile_url=args.tile_url, video=video, weather=weather)
     if args.host not in ("127.0.0.1", "localhost", "::1"):
         logging.getLogger("esptracker").warning(
             "listening on %s: anyone on the network can move the tracker and change its settings", args.host

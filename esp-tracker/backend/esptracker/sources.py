@@ -194,8 +194,10 @@ class SimulatorSource(Source):
         radius_m: float = 400.0,
         speed_ms: float = 14.0,
         time_scale: float = 1.0,
+        on_connect: Sequence[str] = (),
     ) -> None:
         super().__init__(state)
+        self.on_connect = list(on_connect)
         self.center = (float(center[0]), float(center[1]))
         self.radius = radius_m
         self.speed = speed_ms
@@ -238,11 +240,13 @@ class SimulatorSource(Source):
         lat, lon = geo.offset_position(self.center[0], self.center[1], east, north)
         heading = geo.wrap360(math.degrees(ang) + 90.0)
         alt = 120.0 + 45.0 * math.sin(t / 18.0)
+        vs = 45.0 / 18.0 * math.cos(t / 18.0)
         return {
             "t": t,
             "lat": lat,
             "lon": lon,
             "alt": alt,
+            "vs": vs,
             "speed_kmh": self.speed * 3.6,
             "heading": heading,
             "roll": 25.0 * math.sin(t / 5.0),
@@ -348,6 +352,8 @@ class SimulatorSource(Source):
         step = 0
         self.state.set_link("simulator", True)
         self._emit_status()
+        for cmd in self.on_connect:
+            self.send(cmd)
         while not self._stop.is_set():
             t = self._sim_time()
             d = self.drone_at(t)
@@ -356,7 +362,7 @@ class SimulatorSource(Source):
             sats = 14 if t > 3 else 7
 
             # 10 Hz attitude, 5 Hz GPS ... emitted on a shared tick
-            ev({"e": "att", "pitch": round(d["pitch"], 1), "roll": round(d["roll"], 1), "yaw": round(d["heading"] - 180.0, 1)})
+            ev({"e": "att", "pitch": round(d["pitch"], 1), "roll": round(d["roll"], 1), "yaw": round((d["heading"] + 180.0) % 360.0 - 180.0, 1)})
             if step % 2 == 0:
                 ev(
                     {
@@ -404,8 +410,16 @@ class SimulatorSource(Source):
                         "pct": int(100 * frac),
                     }
                 )
+            if step % 2 == 1:
+                # baro altitude is relative to where the FC was powered (ground level here)
+                ev({"e": "baro", "alt": round(d["alt"] - 75.0, 1), "vs": round(d["vs"], 2)})
+            if step % 10 == 0:
+                if t < 5:
+                    m = "ACRO*"  # disarmed on the ground
+                else:
+                    m = "ACRO" if int(t // 30) % 2 == 0 else "ANGL"
+                ev({"e": "mode", "m": m})
             if step % 50 == 0:
-                ev({"e": "mode", "m": "ACRO" if int(t // 30) % 2 == 0 else "ANGL"})
                 self._emit_stat()
             if step % 100 == 0:
                 self._emit_hello()

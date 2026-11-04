@@ -258,6 +258,41 @@ static void test_crsf()
 
     // decoders refuse frames of the wrong type / short payloads
     CHECK(!crsf_decode_gps(fr, &g));
+    float vs = 0;
+    CHECK(!crsf_decode_vario(fr, &vs));
+
+    // vario: -1.5 m/s
+    uint8_t v[2] = {0xFF, 0x6A}; // -150 cm/s
+    n = build_crsf(CRSF_TYPE_VARIO, v, sizeof(v), f);
+    CHECK(crsf_parse_frame(f, n, &fr) && crsf_decode_vario(fr, &vs));
+    CHECK_NEAR(vs, -1.5, 1e-4);
+
+    // baro, decimetre form: 123.4 m -> 1234 + 10000 = 11234 (0x2BE2), packed vspeed +127 cm/s ~ 35
+    CrsfBaro baro;
+    uint8_t ba[3] = {0x2B, 0xE2, 35};
+    n = build_crsf(CRSF_TYPE_BARO_ALT, ba, sizeof(ba), f);
+    CHECK(crsf_parse_frame(f, n, &fr) && crsf_decode_baro(fr, &baro));
+    CHECK_NEAR(baro.alt_m, 123.4, 1e-3);
+    CHECK(baro.has_vspeed);
+    CHECK_NEAR(baro.vspeed_ms, (exp(35 * 0.026) - 1.0), 1e-3); // ~1.48 m/s
+    ba[2] = (uint8_t)-35;
+    n = build_crsf(CRSF_TYPE_BARO_ALT, ba, sizeof(ba), f);
+    CHECK(crsf_parse_frame(f, n, &fr) && crsf_decode_baro(fr, &baro));
+    CHECK_NEAR(baro.vspeed_ms, -(exp(35 * 0.026) - 1.0), 1e-3);
+    // below the power-on point, altitude only
+    uint8_t bb[2] = {0x26, 0xFC}; // 9980 -> -2.0 m
+    n = build_crsf(CRSF_TYPE_BARO_ALT, bb, sizeof(bb), f);
+    CHECK(crsf_parse_frame(f, n, &fr) && crsf_decode_baro(fr, &baro));
+    CHECK_NEAR(baro.alt_m, -2.0, 1e-3);
+    CHECK(!baro.has_vspeed);
+    // metre form (bit 15) with an int16 cm/s vertical speed
+    uint8_t bc[4] = {0x8F, 0xA0, 0x01, 0x2C}; // 4000 m, +300 cm/s
+    n = build_crsf(CRSF_TYPE_BARO_ALT, bc, sizeof(bc), f);
+    CHECK(crsf_parse_frame(f, n, &fr) && crsf_decode_baro(fr, &baro));
+    CHECK_NEAR(baro.alt_m, 4000.0, 1e-3);
+    CHECK(baro.has_vspeed);
+    CHECK_NEAR(baro.vspeed_ms, 3.0, 1e-4);
+    CHECK(!crsf_decode_attitude(fr, &at));
 }
 
 static void test_geo()

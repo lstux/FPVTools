@@ -1,7 +1,7 @@
 // Board level defaults. Override any of these with -D flags in platformio.ini.
 #pragma once
 
-#define FW_VERSION "0.1.0"
+#define FW_VERSION "0.2.0"
 
 #ifndef PIN_PAN
 #error "PIN_PAN is not defined: set it in platformio.ini (build_flags = -DPIN_PAN=<gpio>)"

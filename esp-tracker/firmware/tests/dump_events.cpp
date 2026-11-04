@@ -39,6 +39,14 @@ int main()
     CrsfAttitude a = {30.0f, -10.0f, 180.0f};
     json_attitude(b, sizeof(b), 1030, a);
     emit(b);
+    json_vario(b, sizeof(b), 1035, -1.5f);
+    emit(b);
+    CrsfBaro baro = {123.4f, true, 1.48f};
+    json_baro(b, sizeof(b), 1036, baro);
+    emit(b);
+    CrsfBaro baro2 = {-2.0f, false, 0.0f};
+    json_baro(b, sizeof(b), 1037, baro2);
+    emit(b);
     json_flight_mode(b, sizeof(b), 1040, "ACRO*");
     emit(b);
     json_tracker(b, sizeof(b), 2500, t);

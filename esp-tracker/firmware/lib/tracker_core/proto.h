@@ -25,6 +25,8 @@ int json_gps(char *buf, size_t cap, uint32_t ms, const CrsfGps &g);
 int json_battery(char *buf, size_t cap, uint32_t ms, const CrsfBattery &b);
 int json_link(char *buf, size_t cap, uint32_t ms, const CrsfLinkStats &l);
 int json_attitude(char *buf, size_t cap, uint32_t ms, const CrsfAttitude &a);
+int json_vario(char *buf, size_t cap, uint32_t ms, float vspeed_ms);
+int json_baro(char *buf, size_t cap, uint32_t ms, const CrsfBaro &b);
 int json_flight_mode(char *buf, size_t cap, uint32_t ms, const char *mode);
 int json_tracker(char *buf, size_t cap, uint32_t ms, const Tracker &t);
 int json_stats(char *buf, size_t cap, uint32_t ms, const Counters &c);

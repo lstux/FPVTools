@@ -17,12 +17,17 @@ EVENT_KEYS = {
     "bat": "bat",
     "link": "rf",  # RF link statistics (RSSI/LQ/SNR); "link" is also the name of the USB connection block
     "att": "att",
+    "vario": "vario",
+    "baro": "baro",
     "mode": "mode",
     "trk": "trk",
     "stat": "stat",
     "hello": "hello",
     "cfg": "cfg",
 }
+
+# Flight mode strings the FCs send while disarmed: Betaflight appends '*', iNav says OK/WAIT/!ERR.
+DISARMED_MODES = ("OK", "WAIT", "!ERR")
 
 MIN_TRACK_SATS = 4
 MIN_TRACK_STEP_M = 2.0
@@ -46,11 +51,20 @@ class State:
         self._last_pt: Optional[Tuple[float, float]] = None
 
         self._flight = self._new_flight()
+        self._armed_since: Optional[float] = None
         self._listeners: List[Callable[[Dict[str, Any], float], None]] = []
 
     @staticmethod
     def _new_flight() -> Dict[str, Any]:
-        return {"max_speed_kmh": 0.0, "max_dist_m": 0.0, "max_alt_rel_m": None, "path_m": 0.0}
+        return {"max_speed_kmh": 0.0, "max_dist_m": 0.0, "max_alt_rel_m": None, "path_m": 0.0, "time_s": 0.0}
+
+    @staticmethod
+    def is_armed(mode: Any) -> Optional[bool]:
+        """Armed state guessed from the CRSF flight mode string (None = unknown)."""
+        if not isinstance(mode, str) or not mode:
+            return None
+        m = mode.strip()
+        return not (m.endswith("*") or m.upper() in DISARMED_MODES)
 
     # ---- listeners (used for the JSONL logger) -----------------------------------------------------
 
@@ -96,6 +110,8 @@ class State:
                     self._on_gps(body)
                 elif name == "trk":
                     self._on_trk(body)
+                elif name == "mode":
+                    self._on_mode(body, now)
             elif name == "ack":
                 self.log_console("ack", str(event.get("cmd", "")))
             elif name == "err":
@@ -132,6 +148,14 @@ class State:
             cur = self._flight["max_alt_rel_m"]
             if cur is None or rel > cur:
                 self._flight["max_alt_rel_m"] = rel
+
+    def _on_mode(self, m: Dict[str, Any], now: float) -> None:
+        armed = self.is_armed(m.get("m"))
+        if armed and self._armed_since is None:
+            self._armed_since = now
+        elif not armed and self._armed_since is not None:
+            self._flight["time_s"] += now - self._armed_since
+            self._armed_since = None
 
     def _on_trk(self, trk: Dict[str, Any]) -> None:
         dist = trk.get("dist")
@@ -176,6 +200,8 @@ class State:
             self._track_gen += 1
             self._last_pt = None
             self._flight = self._new_flight()
+            if self._armed_since is not None:
+                self._armed_since = self._clock()
 
     # ---- snapshot --------------------------------------------------------------------------------
 
@@ -195,6 +221,12 @@ class State:
                     item = dict(body)
                     item["age"] = round(now - self._t_rx[key], 2)
                     out[key] = item
-            out["flight"] = dict(self._flight)
+            flight = dict(self._flight)
+            armed = self._data.get("mode")
+            flight["armed"] = self.is_armed(armed.get("m")) if armed else None
+            if self._armed_since is not None:
+                flight["time_s"] += max(0.0, now - self._armed_since)
+            flight["time_s"] = round(flight["time_s"], 1)
+            out["flight"] = flight
             out["track_n"] = self._track_total
             return out

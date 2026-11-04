@@ -1,5 +1,6 @@
 #include "crsf.h"
 
+#include <math.h>
 #include <string.h>
 
 #include "crc8.h"
@@ -85,6 +86,35 @@ bool crsf_decode_attitude(const CrsfFrame &f, CrsfAttitude *out)
     out->pitch_deg = bes16(p) / 10000.0f * RAD2DEG;
     out->roll_deg = bes16(p + 2) / 10000.0f * RAD2DEG;
     out->yaw_deg = bes16(p + 4) / 10000.0f * RAD2DEG;
+    return true;
+}
+
+bool crsf_decode_vario(const CrsfFrame &f, float *vspeed_ms)
+{
+    if (f.type != CRSF_TYPE_VARIO || f.payloadLen < 2) return false;
+    *vspeed_ms = bes16(f.payload) / 100.0f;
+    return true;
+}
+
+bool crsf_decode_baro(const CrsfFrame &f, CrsfBaro *out)
+{
+    if (f.type != CRSF_TYPE_BARO_ALT || f.payloadLen < 2) return false;
+    const uint8_t *p = f.payload;
+    uint16_t packed = be16(p);
+    if (packed & 0x8000) out->alt_m = (float)(packed & 0x7fff);
+    else out->alt_m = ((int32_t)packed - 10000) / 10.0f;
+    out->has_vspeed = false;
+    out->vspeed_ms = 0.0f;
+    if (f.payloadLen >= 4) {
+        out->has_vspeed = true;
+        out->vspeed_ms = bes16(p + 2) / 100.0f;
+    } else if (f.payloadLen == 3) {
+        int8_t v = (int8_t)p[2];
+        int a = v < 0 ? -v : v;
+        float cms = (expf(a * 0.026f) - 1.0f) * 100.0f;
+        out->has_vspeed = true;
+        out->vspeed_ms = (v < 0 ? -cms : cms) / 100.0f;
+    }
     return true;
 }
 

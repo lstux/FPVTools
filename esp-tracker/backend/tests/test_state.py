@@ -23,7 +23,7 @@ def firmware_lines():
 
 def test_fixture_is_real_firmware_output():
     kinds = {json.loads(l)["e"] for l in firmware_lines()}
-    assert {"hello", "gps", "bat", "link", "att", "mode", "trk", "stat", "cfg", "ack", "err", "help"} <= kinds
+    assert {"hello", "gps", "bat", "link", "att", "vario", "baro", "mode", "trk", "stat", "cfg", "ack", "err", "help"} <= kinds
 
 
 def test_ingest_firmware_events():
@@ -41,6 +41,10 @@ def test_ingest_firmware_events():
     assert snap["rf"]["lq"] == 99 and snap["rf"]["rssi1"] == -60 and snap["rf"]["txpwr"] == 100
     assert snap["att"]["pitch"] == pytest.approx(30.0) and snap["att"]["roll"] == pytest.approx(-10.0)
     assert snap["mode"]["m"] == "ACRO*"
+    assert snap["vario"]["vs"] == pytest.approx(-1.5)
+    # the last baro sample has no vertical speed: the snapshot keeps exactly what was sent
+    assert snap["baro"]["alt"] == pytest.approx(-2.0) and "vs" not in snap["baro"]
+    assert snap["flight"]["armed"] is False and snap["flight"]["time_s"] == 0
     assert snap["hello"]["uid"] == "3b933b37b1e4" and snap["hello"]["espnow"] is True
     assert snap["cfg"]["offset"] == 0 and snap["cfg"]["min_sats"] == 6
     assert snap["stat"]["espnow"] == 120
@@ -161,3 +165,30 @@ def test_geo_matches_firmware_reference_values():
     assert m.map(90, 30) == (90.0, 30.0, False)
     pan, tilt, flipped = m.map(270, 30)
     assert (pan, tilt, flipped) == (90.0, 150.0, True)
+
+
+@pytest.mark.parametrize(
+    "mode,armed",
+    [("ACRO", True), ("ACRO*", False), ("!FS!", True), ("OK", False), ("WAIT", False), ("ANGL", True), ("", None), (None, None)],
+)
+def test_armed_guess(mode, armed):
+    assert State.is_armed(mode) is armed
+
+
+def test_flight_timer_counts_armed_time_only():
+    clock = Clock()
+    st = State(clock=clock)
+    st.ingest({"e": "mode", "m": "ACRO*"})
+    clock.t += 10
+    st.ingest({"e": "mode", "m": "ACRO"})
+    clock.t += 30
+    assert st.snapshot()["flight"]["time_s"] == pytest.approx(30)
+    st.ingest({"e": "mode", "m": "ACRO*"})
+    clock.t += 100
+    st.ingest({"e": "mode", "m": "ANGL"})
+    clock.t += 5
+    snap = st.snapshot()["flight"]
+    assert snap["time_s"] == pytest.approx(35) and snap["armed"] is True
+    st.clear_track()
+    clock.t += 2
+    assert st.snapshot()["flight"]["time_s"] == pytest.approx(2)

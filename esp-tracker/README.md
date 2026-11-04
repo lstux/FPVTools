@@ -8,8 +8,10 @@ An antenna tracker and ground station for ExpressLRS drones, built around a chea
 * **Antenna tracker.** The ESP32 computes azimuth/elevation from the drone's GPS position and drives a
   pan/tilt servo pair carrying your VRX antennas.
 * **Live ground station.** The ESP32 forwards everything as JSON lines over USB. A small Python
-  application shows the drone on a map (online or offline tiles) with all the useful telemetry, and
-  controls the tracker.
+  application shows a cockpit-style screen: the goggles / VRX video (HDMI → USB capture dongle) with a
+  head-up display (artificial horizon, speed and altitude tapes, heading, home arrow, warnings), a
+  mini-map (online or offline tiles), the flying weather at the field (wind by height, gusts,
+  visibility, clouds) and the tracker controls.
 
 ```mermaid
 flowchart LR
@@ -19,7 +21,8 @@ flowchart LR
   BP -- "ESP-NOW, channel 1" --> ESP[esp-tracker board<br/>ESP32-C3 / S2 / ESP32]
   ESP -- PWM --> SERVOS[pan / tilt servos]
   ESP -- "USB serial, JSON lines" --> HOST["esptracker backend<br/>(Linux amd64/arm64, Windows, macOS)"]
-  HOST -- "HTTP + WebSocket" --> UI[Browser: map, telemetry, controls]
+  VRX[Goggles / VRX HDMI] -- "UVC capture dongle" --> HOST
+  HOST -- "HTTP + WebSocket + MJPEG" --> UI[Browser: video + HUD, map, weather, controls]
 ```
 
 ## Layout
@@ -37,8 +40,10 @@ flowchart LR
 cd backend
 python3 -m venv .venv && . .venv/bin/activate
 pip install .
-esptracker --simulate          # then open http://127.0.0.1:8080
+esptracker --simulate --home 48.8566,2.3522,75 --video test   # then open http://127.0.0.1:8080
 ```
+
+`--video test` needs ffmpeg (`sudo apt install ffmpeg`); drop it to see the synthetic horizon instead.
 
 ## Tests
 

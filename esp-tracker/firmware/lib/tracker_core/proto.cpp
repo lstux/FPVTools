@@ -88,6 +88,22 @@ int json_attitude(char *buf, size_t cap, uint32_t ms, const CrsfAttitude &a)
                   cap);
 }
 
+int json_vario(char *buf, size_t cap, uint32_t ms, float vspeed_ms)
+{
+    return finish(snprintf(buf, cap, "{\"e\":\"vario\",\"ms\":%lu,\"vs\":%.2f}", (unsigned long)ms, (double)vspeed_ms),
+                  cap);
+}
+
+int json_baro(char *buf, size_t cap, uint32_t ms, const CrsfBaro &b)
+{
+    if (b.has_vspeed)
+        return finish(snprintf(buf, cap, "{\"e\":\"baro\",\"ms\":%lu,\"alt\":%.1f,\"vs\":%.2f}", (unsigned long)ms,
+                               (double)b.alt_m, (double)b.vspeed_ms),
+                      cap);
+    return finish(snprintf(buf, cap, "{\"e\":\"baro\",\"ms\":%lu,\"alt\":%.1f}", (unsigned long)ms, (double)b.alt_m),
+                  cap);
+}
+
 int json_flight_mode(char *buf, size_t cap, uint32_t ms, const char *mode)
 {
     char esc[40];
