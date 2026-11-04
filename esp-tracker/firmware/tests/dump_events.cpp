@@ -7,6 +7,8 @@
 
 #include "crc8.h"
 #include "md5.h"
+#include "compass.h"
+#include "nmea.h"
 #include "proto.h"
 #include "tracker.h"
 
@@ -50,6 +52,18 @@ int main()
     json_flight_mode(b, sizeof(b), 1040, "ACRO*");
     emit(b);
     json_tracker(b, sizeof(b), 2500, t);
+    emit(b);
+
+    NmeaFix f = {true, 1, 9, 0.9f, 48.1230000, -1.6540000, 101.5f, 25};
+    AutoHome ah;
+    for (uint32_t ms = 0; ms < 30 * 600; ms += 600) ah.feed(f, ms, 6);
+    json_tracker_gps(b, sizeof(b), 2600, f, 38400, ah, 250, 1);
+    emit(b);
+    SensorReport sr = {"MPU6050", "HMC5883L", "BMP180", true, 211.0f, 213.5f, true, 1.5f, 1, 0, true, 101320.0f, 12.3f, true};
+    json_sensors(b, sizeof(b), 2700, sr);
+    emit(b);
+    SensorReport none = {"", "", "", false, 0, 0, false, 0, 0, 0, false, 0, 0, false};
+    json_sensors(b, sizeof(b), 2800, none);
     emit(b);
 
     Tracker nohome;

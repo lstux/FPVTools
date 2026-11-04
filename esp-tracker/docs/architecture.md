@@ -88,6 +88,35 @@ core 2.0.17 (`platform = espressif32@6.9.0`).
 | `tracker_config` | persisted configuration struct, defaults, `SET` parameter table with range checks |
 | `tracker` | the tracking engine (GPS in → target pan/tilt → slewed servo angles), no hardware access |
 | `proto` | JSON event writers and the command parser |
+| `nmea` | NMEA 0183 reader (GGA + RMC, checksum, any GNSS talker) for a GPS module on the tracker |
+| `baro_calc` | BMP180 and BMP280/BME280 compensation (Bosch integer algorithms), pressure altitude |
+| `compass` | tilt-compensated heading, magnetometer calibration, circular low-pass filter, auto-home averaging |
+| `screen` | the text of the TTGO status screen pages (what to show, in which colour) |
+
+`firmware/src/sensors.cpp` holds the I2C drivers (detection by ID register, non-blocking BMP180 state machine) and
+`firmware/src/display.cpp` paints the screen pages on the ST7735 and debounces the buttons. Both only move bytes; the
+decisions are in the core.
+
+### Tracker sensors
+
+* **Heading without roll/pitch formulas.** With the accelerometer reading `a` (points up when the board is level) and the
+  calibrated field `m`, `down = -a`, `east = down × m`, `north = east × down`; the heading of the sensor X axis is
+  `atan2(east.x, north.x)`. This is exact for any tilt and has no singularity except a field parallel to gravity. Without
+  an accelerometer the board is assumed level. The AK8963 inside an MPU9250 has its own axes (X/Y swapped, Z inverted)
+  and is remapped to the accelerometer's frame. The heading is filtered on the unit circle (no jump at 359 → 0), then
+  `offset = heading + declination + compass_mount`, applied when it changes by more than 0.5° (servos do not hunt on noise).
+* **Calibration.** A tracker turns flat, so the samples describe an ellipse in X/Y: the centre and semi-axes come from a
+  linear least-squares fit of `A x² + y² + D x + E y + F = 0` (hard iron + per-axis gain), more robust than min/max to a
+  single spike. Z only sees the vertical field during a flat turn, so it is calibrated (min/max) only when the sensor was
+  really tumbled. Progress = share of 36 ten-degree sectors seen around the fitted centre; finishing needs ≥ 80 %.
+  Tilting during the turn leaks the vertical field into X/Y, hence "keep it flat".
+* **Automatic home** averages 20 fixes at least 0.5 s apart, accepted only with ≥ `min_sats` satellites and HDOP ≤ 2.5.
+  It runs only when the home is unset or came from the tracker GPS (`home_src`), so a home chosen by hand is never
+  overwritten, and a GPS home is re-measured after each boot.
+* **GPS speed detection** cycles 9600, 38400, 57600, 115200, 19200, 4800 baud, 3 s each, until a sentence with a valid
+  checksum arrives.
+* **Height from drone baro** (`alt_src = 1`): the CRSF baro altitude is relative to the drone's power-on point; it is used
+  for the elevation only while it is about as fresh as the GPS frame, else the engine falls back to GPS altitudes.
 
 `firmware/src/main.cpp` is the glue: NVS (`Preferences`) load/save of one `TrackerConfig` blob, ESP32Servo output at
 50 Hz, ESP-NOW startup/queue, the serial line reader, periodic reports. Loop structure: drain ESP-NOW queue → read commands →
@@ -133,9 +162,11 @@ Lines of UTF-8, `\n` terminated. Anything that is not a JSON object (boot ROM me
 | `vario` | `ms vs` (m/s) |
 | `baro` | `ms alt` (m above the FC's power-on point) and `vs` (m/s) when the FC sends it |
 | `mode` | `ms m` (flight mode text) |
-| `trk` | `ms mode home hlat hlon halt tracking pan tilt tpan ttilt flip gps_age az el dist dist3d` (`az el dist dist3d` are null until home and GPS are known; `tpan/ttilt` are the targets, `pan/tilt` the current slewed angles) |
+| `trk` | `ms mode home hlat hlon halt tracking pan tilt tpan ttilt flip gps_age hsrc altsrc offset az el dist dist3d` (`hsrc`: where the home came from, `altsrc`: gps or baro; `az el dist dist3d` are null until home and GPS are known; `tpan/ttilt` are the targets, `pan/tilt` the current slewed angles) |
 | `stat` | `ms espnow msp_ok msp_bad crsf_ok crsf_bad crsf_other dropped` |
-| `cfg` | `uid home hlat hlon halt offset hyst slew pan_min_us pan_max_us tilt_min_us tilt_max_us pan_invert tilt_invert min_sats lost_ms` |
+| `cfg` | `uid home hlat hlon halt offset hyst slew pan_min_us pan_max_us tilt_min_us tilt_max_us pan_invert tilt_invert min_sats lost_ms home_src alt_src auto_home auto_north compass_mount declination gps_baud magcal` |
+| `tgps` | tracker GPS, every second while a module answers: `ms fix q sats hdop lat lon alt baud ahome (waiting/averaging/locked) ahome_pct good bad` |
+| `sens` | tracker sensors, every second: `ms imu mag baro` (chip names, empty if absent), `hdg` (true) `hdg_mag tilt hpa temp` (null if absent), `cal` (none/ok/running) `cal_cov` (%), `north` (offset driven by the compass) |
 | `ack` / `err` / `help` | `cmd` / `msg` / `text` |
 
 **Host → board**: the ASCII commands of the [usage guide](usage.md#7-serial-command-reference). The backend only forwards
@@ -193,12 +224,14 @@ Weather (Open-Meteo, cache + disk copy) ──► GET /api/weather
 
 | Suite | Command | Covers |
 | --- | --- | --- |
-| C++ core | `make -C firmware/tests test` | 264 checks, built with `-Wall -Wextra -Werror` and AddressSanitizer/UBSan: CRC check value, MD5 against `hashlib` vectors (incl. padding boundaries), UID parsing, MSP/CRSF parsing (corruption, truncation, oversize, back-to-back packets), all decoders (incl. both baro vertical speed encodings), geodesy, pan/tilt flip + hysteresis, tracker engine (slew, quality gate, hold, manual/auto), command parser, config limits, JSON output |
-| Firmware glue | `make -C firmware/tests syntax` | `src/main.cpp` compiles (syntax and types) against stub Arduino-ESP32 headers for the three pin/LED variants |
-| Backend | `cd backend && pytest` | 75 tests: state/track/console logic fed with real firmware output, armed timer, command validation, simulator, serial loopback, log/replay, REST, WebSocket, MBTiles, CLI errors, JPEG splitting and Huffman insertion, capture start/idle stop/errors (with a fake camera and with ffmpeg's test pattern), device discovery, weather parsing / wind profile / cache / offline fallback |
+| C++ core | `make -C firmware/tests test` | 460 checks, built with `-Wall -Wextra -Werror` and AddressSanitizer/UBSan: CRC check value, MD5 against `hashlib` vectors (incl. padding boundaries), UID parsing, MSP/CRSF parsing (corruption, truncation, oversize, back-to-back packets), all decoders (incl. both baro vertical speed encodings), NMEA (reference sentences, checksums, hemispheres, void fixes), BMP180/BMP280 against the datasheet worked examples, compass heading over headings and tilts, calibration (offsets, gains, half turn refused, tumble), auto-home, tracker baro height, screen pages, geodesy, pan/tilt flip + hysteresis, tracker engine (slew, quality gate, hold, manual/auto), command parser, config limits, JSON output |
+| Firmware glue | `make -C firmware/tests syntax` | `src/main.cpp`, `sensors.cpp`, `display.cpp` compile with `-Werror` against stub Arduino-ESP32 / Wire / SPI / ST7735 headers for three variants (C3 bare, ESP32 with sensors + GPS, TTGO TS with everything) |
+| Backend | `cd backend && pytest` | 77 tests: state/track/console logic fed with real firmware output, armed timer, command validation, simulator, serial loopback, log/replay, REST, WebSocket, MBTiles, CLI errors, JPEG splitting and Huffman insertion, capture start/idle stop/errors (with a fake camera and with ffmpeg's test pattern), device discovery, weather parsing / wind profile / cache / offline fallback |
 | UI | manual | Exercised in headless Chromium against the simulator with `--video test` and a saved forecast: desktop, phone portrait and landscape, every panel, map/video swap; no JS errors |
 
-**Not verified**: a real HDMI dongle (only ffmpeg's test pattern and a fake camera were used), a live Open-Meteo answer
+**Not verified**: any of the I2C sensors, GPS module or the TTGO screen on real hardware (chip IDs, register maps
+and axis conventions come from the datasheets; the Adafruit ST7735 "tab" variant of the TTGO TS screen may need
+changing), a real HDMI dongle (only ffmpeg's test pattern and a fake camera were used), a live Open-Meteo answer
 (the parser follows the documented format; the test fixture is synthetic because the API was not reachable where this was
 written), a PlatformIO build of the three environments (toolchain downloads were not reachable where this was
 written), running on a real board, the actual ESP-NOW link with a GX12 Backpack, and servo behaviour. The stubs only model
@@ -208,5 +241,5 @@ the Arduino-ESP32 calls used, so API mismatches with the real core would only sh
 
 * BLE UART service on C3/ESP32 exposing the same JSON lines, for an Android client.
 * ESP8266 (D1 mini) port.
-* GPS + magnetometer on the tracker for automatic home and north.
+* A buzzer on the TTGO (link lost, low battery).
 * Stepper-driven continuous pan (removes the flip logic), `ESP-NOW` channel/`UID` sniffing to learn the UID automatically.

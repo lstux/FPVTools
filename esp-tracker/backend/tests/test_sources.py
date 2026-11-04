@@ -176,3 +176,37 @@ def test_replay_rejects_empty_log(tmp_path: Path):
     p.write_text("not json\n\n")
     with pytest.raises(ValueError):
         ReplaySource(State(), str(p))
+
+
+def test_validate_accepts_calibration_commands():
+    assert validate_command("CAL MAG START") == "CAL MAG START"
+    assert validate_command("home gps") == "home gps"
+
+
+def test_simulator_tracker_sensors_and_calibration():
+    st = State()
+    sim = SimulatorSource(st, time_scale=20)
+    sim.start()
+    try:
+        assert wait_for(lambda: st.snapshot()["sens"] and st.snapshot()["tgps"])
+        snap = st.snapshot()
+        assert snap["sens"]["mag"] == "HMC5883L" and snap["sens"]["cal"] == "none" and snap["sens"]["north"] is False
+        sim.send("HOME GPS")
+        assert wait_for(lambda: st.snapshot()["trk"]["hsrc"] == "gps" and st.snapshot()["trk"]["home"] is True)
+        assert wait_for(lambda: st.snapshot()["tgps"]["ahome"] == "locked")
+
+        sim.send("CAL MAG STOP")  # nothing running
+        sim.send("CAL MAG START")
+        assert wait_for(lambda: st.snapshot()["sens"]["cal"] == "running")
+        assert wait_for(lambda: st.snapshot()["sens"]["cal_cov"] >= 100, timeout=8)
+        sim.send("CAL MAG STOP")
+        assert wait_for(lambda: st.snapshot()["sens"]["cal"] == "ok" and st.snapshot()["sens"]["north"] is True)
+        sim.send("STATUS")
+        # auto north: the pan offset follows the (simulated) compass, 215 deg + 1.5 deg declination
+        assert wait_for(lambda: abs(st.snapshot()["trk"]["offset"] - 216.5) < 2)
+        _, items = st.console_since(0)
+        texts = [(i["kind"], i["text"]) for i in items]
+        assert ("err", "no calibration running (CAL MAG START)") in texts
+        assert ("ack", "CAL MAG START") in texts and ("ack", "CAL MAG STOP") in texts
+    finally:
+        sim.stop()

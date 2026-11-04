@@ -7,10 +7,13 @@
 {"e":"baro","ms":1036,"alt":123.4,"vs":1.48}
 {"e":"baro","ms":1037,"alt":-2.0}
 {"e":"mode","ms":1040,"m":"ACRO*"}
-{"e":"trk","ms":2500,"mode":"auto","home":true,"hlat":48.1230000,"hlon":-1.6540000,"halt":100.0,"tracking":true,"pan":154.9,"tilt":160.4,"tpan":154.9,"ttilt":160.4,"flip":true,"gps_age":1500,"az":334.9,"el":19.6,"dist":56.1,"dist3d":59.6}
-{"e":"trk","ms":500,"mode":"auto","home":false,"hlat":0.0000000,"hlon":0.0000000,"halt":0.0,"tracking":false,"pan":90.0,"tilt":0.0,"tpan":90.0,"ttilt":0.0,"flip":false,"gps_age":-1,"az":null,"el":null,"dist":null,"dist3d":null}
+{"e":"trk","ms":2500,"mode":"auto","home":true,"hlat":48.1230000,"hlon":-1.6540000,"halt":100.0,"tracking":true,"pan":154.9,"tilt":160.4,"tpan":154.9,"ttilt":160.4,"flip":true,"gps_age":1500,"hsrc":"manual","altsrc":"gps","offset":0.0,"az":334.9,"el":19.6,"dist":56.1,"dist3d":59.6}
+{"e":"tgps","ms":2600,"fix":true,"q":1,"sats":9,"hdop":0.9,"lat":48.1230000,"lon":-1.6540000,"alt":101.5,"baud":38400,"ahome":"locked","ahome_pct":100,"good":250,"bad":1}
+{"e":"sens","ms":2700,"imu":"MPU6050","mag":"HMC5883L","baro":"BMP180","hdg":213.5,"hdg_mag":211.0,"tilt":1.5,"cal":"ok","cal_cov":0,"hpa":1013.20,"temp":12.3,"north":true}
+{"e":"sens","ms":2800,"imu":"","mag":"","baro":"","hdg":null,"hdg_mag":null,"tilt":null,"cal":"none","cal_cov":0,"hpa":null,"temp":null,"north":false}
+{"e":"trk","ms":500,"mode":"auto","home":false,"hlat":0.0000000,"hlon":0.0000000,"halt":0.0,"tracking":false,"pan":90.0,"tilt":0.0,"tpan":90.0,"ttilt":0.0,"flip":false,"gps_age":-1,"hsrc":"none","altsrc":"gps","offset":0.0,"az":null,"el":null,"dist":null,"dist3d":null}
 {"e":"stat","ms":3000,"espnow":120,"msp_ok":118,"msp_bad":2,"crsf_ok":118,"crsf_bad":0,"crsf_other":40,"dropped":0}
-{"e":"cfg","uid":"3b933b37b1e4","home":true,"hlat":48.1230000,"hlon":-1.6540000,"halt":100.0,"offset":0.0,"hyst":3.0,"slew":120,"pan_min_us":500,"pan_max_us":2500,"tilt_min_us":500,"tilt_max_us":2500,"pan_invert":0,"tilt_invert":0,"min_sats":6,"lost_ms":5000}
+{"e":"cfg","uid":"3b933b37b1e4","home":true,"hlat":48.1230000,"hlon":-1.6540000,"halt":100.0,"offset":0.0,"hyst":3.0,"slew":120,"pan_min_us":500,"pan_max_us":2500,"tilt_min_us":500,"tilt_max_us":2500,"pan_invert":0,"tilt_invert":0,"min_sats":6,"lost_ms":5000,"home_src":1,"alt_src":0,"auto_home":1,"auto_north":1,"compass_mount":0.0,"declination":0.0,"gps_baud":0,"magcal":false}
 {"e":"ack","cmd":"SAVE"}
 {"e":"err","msg":"unknown key 'x\"y'"}
-{"e":"help","text":"PING | STATUS | BIND <phrase> | UID <hex12|d,d,d,d,d,d> | HOME <lat> <lon> <alt> | HOME DRONE | HOME CLEAR | MODE AUTO|MANUAL | AIM <pan> <tilt> | SET <key> <value> | SAVE | FACTORY | REBOOT. Keys: offset,hyst,slew,pan_min_us,pan_max_us,tilt_min_us,tilt_max_us,pan_invert,tilt_invert,min_sats,lost_ms"}
+{"e":"help","text":"PING | STATUS | BIND <phrase> | UID <hex12|d,d,d,d,d,d> | HOME <lat> <lon> <alt> | HOME DRONE | HOME GPS | HOME CLEAR | MODE AUTO|MANUAL | AIM <pan> <tilt> | CAL MAG START|STOP|CLEAR | SET <key> <value> | SAVE | FACTORY | REBOOT. Keys: offset,hyst,slew,pan_min_us,pan_max_us,tilt_min_us,tilt_max_us,pan_invert,tilt_invert,min_sats,lost_ms,alt_src,auto_home,auto_north,compass_mount,declination,gps_baud"}

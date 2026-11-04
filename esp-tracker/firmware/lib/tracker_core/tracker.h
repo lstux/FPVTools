@@ -17,9 +17,11 @@ public:
 
     // --- inputs -----------------------------------------------------------------------------
     void onGps(const CrsfGps &gps, uint32_t now_ms);
+    // Drone barometric altitude (m above where it was powered), used when cfg.alt_src == 1.
+    void onDroneBaro(float alt_m, uint32_t now_ms);
     // Use the drone's current position as the tracker position (drone sitting next to the tracker).
     bool setHomeFromDrone(uint32_t now_ms);
-    void setHome(double lat, double lon, float alt_m);
+    void setHome(double lat, double lon, float alt_m, uint8_t src = HOME_SRC_MANUAL);
     void clearHome();
     void setAuto();
     void setManual(float pan_deg, float tilt_deg);
@@ -44,6 +46,9 @@ public:
     float targetPan() const { return tgtPan_; }
     float targetTilt() const { return tgtTilt_; }
     bool flipped() const { return flipped_; }
+    // true when the last elevation used the drone baro instead of GPS altitudes
+    bool usedBaro() const { return usedBaro_; }
+    double heightAboveHome() const { return dalt_; }
     uint16_t panUs() const;
     uint16_t tiltUs() const;
 
@@ -56,7 +61,11 @@ private:
     uint32_t gpsMs_ = 0;
 
     bool geoValid_ = false;
-    double az_ = 0, el_ = 0, dist_ = 0, d3_ = 0;
+    double az_ = 0, el_ = 0, dist_ = 0, d3_ = 0, dalt_ = 0;
+    bool usedBaro_ = false;
+    bool hasBaro_ = false;
+    float baroAlt_ = 0;
+    uint32_t baroMs_ = 0;
 
     AimMapper mapper_;
     bool flipped_ = false;

@@ -6,7 +6,10 @@ An antenna tracker and ground station for ExpressLRS drones, built around a chea
   (the GX12's internal module has one) can forward every CRSF telemetry frame, GPS included, over
   ESP-NOW. An ESP32 listens to it.
 * **Antenna tracker.** The ESP32 computes azimuth/elevation from the drone's GPS position and drives a
-  pan/tilt servo pair carrying your VRX antennas.
+  pan/tilt servo pair carrying your VRX antennas. Optional sensors on the tracker set it up by themselves:
+  a GPS module finds the home position, a compass (+ accelerometer) finds north, a barometer reports
+  the field pressure. The LilyGO TTGO TS build shows the state on its screen, so you can check it
+  without a computer.
 * **Live ground station.** The ESP32 forwards everything as JSON lines over USB. A small Python
   application shows a cockpit-style screen: the goggles / VRX video (HDMI → USB capture dongle) with a
   head-up display (artificial horizon, speed and altitude tapes, heading, home arrow, warnings), a
@@ -60,5 +63,5 @@ PlatformIO or flashed here, so expect to adjust pins and servo limits (see the u
 ESP-NOW receive path copies what the ELRS Backpack firmware does, see
 [`docs/architecture.md`](docs/architecture.md#esp-now-reception) for the exact sources.
 
-Supported chips: ESP32-C3, ESP32-S2, ESP32. ESP8266 (Wemos D1 mini) is not covered yet. Bluetooth/Android
+Supported chips: ESP32-C3, ESP32-S2, ESP32 (and the LilyGO TTGO TS v1.2 board with its screen). ESP8266 (Wemos D1 mini) is not covered yet. Bluetooth/Android
 output is planned but not implemented (C3 and classic ESP32 have BLE, S2 does not).

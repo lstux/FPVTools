@@ -1,5 +1,6 @@
 // Host-side unit tests for the portable core (no ESP toolchain needed).
 //   make -C firmware/tests test
+#include <initializer_list>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -11,6 +12,10 @@
 #include "msp.h"
 #include "proto.h"
 #include "tracker.h"
+#include "baro_calc.h"
+#include "compass.h"
+#include "nmea.h"
+#include "screen.h"
 
 static int g_fail = 0, g_checks = 0;
 
@@ -481,6 +486,392 @@ static void test_json()
     CHECK(n > 0 && strstr(b, "\"uid\":\"3b933b37b1e4\"") && strstr(b, "\"espnow\":true"));
 }
 
+
+// ---- tracker sensors ----------------------------------------------------------------------------
+
+static int feed_str(NmeaParser &p, const char *s)
+{
+    int n = 0;
+    for (; *s; ++s) n += p.feed(*s) ? 1 : 0;
+    return n;
+}
+
+static void nmea_sentence(const char *body, char *out)
+{
+    uint8_t x = 0;
+    for (const char *p = body; *p; ++p) x ^= (uint8_t)*p;
+    sprintf(out, "$%s*%02X\r\n", body, x);
+}
+
+static void test_nmea()
+{
+    double v;
+    CHECK(nmea_parse_coord("4807.038", "N", &v));
+    CHECK_NEAR(v, 48.1173, 1e-6);
+    CHECK(nmea_parse_coord("01131.000", "W", &v));
+    CHECK_NEAR(v, -11.516666667, 1e-6);
+    CHECK(!nmea_parse_coord("", "N", &v));
+    CHECK(!nmea_parse_coord("4807.038", "X", &v));
+    CHECK(!nmea_parse_coord("4870.000", "N", &v)); // 70 minutes
+
+    NmeaParser p;
+    // the classic examples (checksums from the NMEA references)
+    CHECK(feed_str(p, "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47\r\n") == 1);
+    CHECK(p.fix().valid && p.fix().sats == 8 && p.fix().quality == 1);
+    CHECK_NEAR(p.fix().lat, 48.1173, 1e-6);
+    CHECK_NEAR(p.fix().lon, 11.516666667, 1e-6);
+    CHECK_NEAR(p.fix().alt_m, 545.4, 1e-3);
+    CHECK_NEAR(p.fix().hdop, 0.9, 1e-4);
+    CHECK(feed_str(p, "$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A\r\n") == 1);
+    CHECK(p.good == 2 && p.bad == 0);
+
+    // corrupted checksum, garbage, overlong
+    CHECK(feed_str(p, "$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*48\r\n") == 0);
+    CHECK(p.bad == 1);
+    CHECK(feed_str(p, "\xff\x00garbage$$$\r\n") == 0);
+    char longs[200];
+    memset(longs, 'A', sizeof(longs));
+    longs[0] = '$';
+    longs[199] = 0;
+    feed_str(p, longs);
+    CHECK(p.bad >= 2);
+
+    // multi-GNSS talker, southern / western hemisphere, no fix, then RMC void
+    char sbuf[128];
+    NmeaParser q;
+    nmea_sentence("GNGGA,101010.00,3345.1234,S,07030.5000,W,2,14,0.7,512.0,M,0,M,,", sbuf);
+    CHECK(feed_str(q, sbuf) == 1 && q.fix().valid && q.fix().sats == 14 && q.fix().quality == 2);
+    CHECK_NEAR(q.fix().lat, -(33 + 45.1234 / 60), 1e-7);
+    CHECK_NEAR(q.fix().lon, -(70 + 30.5 / 60), 1e-7);
+    nmea_sentence("GNRMC,101011.00,V,,,,,,,,,,N", sbuf);
+    CHECK(feed_str(q, sbuf) == 1 && !q.fix().valid);
+    nmea_sentence("GNGGA,101012.00,,,,,0,03,99.9,,,,,,", sbuf);
+    CHECK(feed_str(q, sbuf) == 1 && !q.fix().valid && q.fix().sats == 3);
+    // other sentence types are counted but do not update the fix
+    nmea_sentence("GPGSV,3,1,11,03,03,111,00,04,15,270,00,06,01,010,00,13,06,292,00", sbuf);
+    uint32_t upd = q.fix().updates;
+    CHECK(feed_str(q, sbuf) == 0 && q.fix().updates == upd);
+    // fix comes back once RMC says valid again
+    nmea_sentence("GNRMC,101013.00,A,3345.1234,S,07030.5000,W,0.0,0.0,051126,,,A", sbuf);
+    feed_str(q, sbuf);
+    nmea_sentence("GNGGA,101013.00,3345.1234,S,07030.5000,W,1,09,1.1,512.0,M,0,M,,", sbuf);
+    CHECK(feed_str(q, sbuf) == 1 && q.fix().valid);
+}
+
+static void test_baro()
+{
+    // BMP180 datasheet, section 3.5 worked example
+    Bmp180Cal c = {408, -72, -14383, 32741, 32757, 23153, 6190, 4, -32768, -8711, 2868};
+    float t, pa;
+    bmp180_compensate(c, 27898, 23843, 0, &t, &pa);
+    CHECK_NEAR(t, 15.0, 1e-4);
+    CHECK_NEAR(pa, 69964, 0.5);
+    // calibration parsing (big endian)
+    uint8_t raw[22] = {0x01, 0x98, 0xFF, 0xB8, 0xC7, 0xD1, 0x7F, 0xE5, 0x7F, 0xF5, 0x5A, 0x71,
+                       0x18, 0x2E, 0x00, 0x04, 0x80, 0x00, 0xDD, 0xF9, 0x0B, 0x34};
+    Bmp180Cal pc;
+    bmp180_parse_cal(raw, &pc);
+    CHECK(pc.ac1 == 408 && pc.ac2 == -72 && pc.ac3 == -14383 && pc.ac4 == 32741 && pc.ac5 == 32757);
+    CHECK(pc.ac6 == 23153 && pc.b1 == 6190 && pc.b2 == 4 && pc.mb == -32768 && pc.mc == -8711 && pc.md == 2868);
+
+    // BMP280 datasheet, section 3.12 worked example
+    Bmp280Cal b = {27504, 26435, -1000, 36477, -10685, 3024, 2855, 140, -7, 15500, -14600, 6000};
+    CHECK(bmp280_compensate(b, 519888, 415148, &t, &pa));
+    CHECK_NEAR(t, 25.08, 1e-3);
+    CHECK_NEAR(pa, 100653.27, 0.05);
+    uint8_t r2[24];
+    const uint16_t vals[12] = {27504, 26435, (uint16_t)-1000, 36477, (uint16_t)-10685, 3024, 2855, 140,
+                               (uint16_t)-7, 15500, (uint16_t)-14600, 6000};
+    for (int i = 0; i < 12; ++i) { r2[i * 2] = (uint8_t)(vals[i] & 0xFF); r2[i * 2 + 1] = (uint8_t)(vals[i] >> 8); }
+    Bmp280Cal pb;
+    bmp280_parse_cal(r2, &pb);
+    CHECK(pb.t1 == 27504 && pb.t3 == -1000 && pb.p2 == -10685 && pb.p6 == -7 && pb.p9 == 6000);
+    Bmp280Cal zero = {};
+    CHECK(!bmp280_compensate(zero, 519888, 415148, &t, &pa)); // division guard
+
+    CHECK_NEAR(pressure_altitude_m(101325.0f), 0.0, 1e-3);
+    CHECK_NEAR(pressure_altitude_m(89874.6f), 1000.0, 1.0); // ISA table
+    CHECK_NEAR(pressure_altitude_m(100000.0f, 100000.0f), 0.0, 1e-3);
+}
+
+// Sensor readings for a board whose +X axis points to `hdg` (deg from north), then rolled about X and
+// pitched about the (level) Y axis. Field: 20 horizontal (north), 43 down (mid-latitude).
+static void synth(double hdg, double roll, double pitch, Vec3 *mag, Vec3 *acc)
+{
+    const double h = hdg * M_PI / 180, r = roll * M_PI / 180, pt = pitch * M_PI / 180;
+    // NED world; sensor axes for a flat board, component side up (Z up = -D)
+    double X[3] = {cos(h), sin(h), 0}, Y[3] = {sin(h), -cos(h), 0}, Z[3] = {0, 0, -1};
+    // pitch about Y (nose up)
+    double X1[3], Z1[3];
+    for (int i = 0; i < 3; ++i) { X1[i] = X[i] * cos(pt) + Z[i] * sin(pt); Z1[i] = -X[i] * sin(pt) + Z[i] * cos(pt); }
+    // roll about the new X
+    double Y2[3], Z2[3];
+    for (int i = 0; i < 3; ++i) { Y2[i] = Y[i] * cos(r) + Z1[i] * sin(r); Z2[i] = -Y[i] * sin(r) + Z1[i] * cos(r); }
+    const double F[3] = {20, 0, 43}, UP[3] = {0, 0, -1};
+    auto dot = [](const double *a, const double *b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; };
+    *mag = {(float)dot(F, X1), (float)dot(F, Y2), (float)dot(F, Z2)};
+    *acc = {(float)dot(UP, X1), (float)dot(UP, Y2), (float)dot(UP, Z2)};
+}
+
+static double angdiff(double a, double b)
+{
+    double d = fmod(a - b + 540.0, 360.0) - 180.0;
+    return fabs(d);
+}
+
+static void test_compass()
+{
+    Vec3 m, a;
+    float tilt = -1;
+    for (double h : {0.0, 45.0, 90.0, 180.0, 213.0, 359.0}) {
+        synth(h, 0, 0, &m, &a);
+        CHECK(angdiff(compass_heading(m, &a, &tilt), h) < 0.01);
+        CHECK_NEAR(tilt, 0.0, 0.01);
+        CHECK(angdiff(compass_heading(m, nullptr, nullptr), h) < 0.01); // level assumption
+    }
+    // tilted 15 deg: the accelerometer keeps the heading right, the level assumption does not
+    synth(213, 15, 0, &m, &a);
+    CHECK(angdiff(compass_heading(m, &a, &tilt), 213) < 0.01);
+    CHECK_NEAR(tilt, 15.0, 0.01);
+    CHECK(angdiff(compass_heading(m, nullptr, nullptr), 213) > 5);
+    synth(30, -8, 12, &m, &a);
+    CHECK(angdiff(compass_heading(m, &a, &tilt), 30) < 0.01);
+    CHECK_NEAR(tilt, acos(cos(8 * M_PI / 180) * cos(12 * M_PI / 180)) * 180 / M_PI, 0.01);
+    // degenerate inputs
+    Vec3 zero = {0, 0, 0};
+    CHECK(compass_heading(zero, &a, nullptr) < 0);
+    CHECK(compass_heading(m, &zero, nullptr) < 0);
+
+    // calibration: hard-iron offset + unequal gains, one flat turn plus a little tilt
+    const float off[3] = {35, -22, 12}, gain[3] = {1.25f, 0.8f, 1.0f};
+    auto distort = [&](Vec3 v) { return Vec3{v.x * gain[0] + off[0], v.y * gain[1] + off[1], v.z * gain[2] + off[2]}; };
+    MagCalibrator cal;
+    MagCalibration mc;
+    magcal_identity(&mc);
+    CHECK(!mc.valid && mc.scale[0] == 1);
+    cal.start();
+    CHECK(cal.active() && cal.coverage() == 0);
+    for (int i = 0; i < 360; i += 3) {
+        synth(i, 1 * sin(i * M_PI / 90), 0, &m, &a); // a flat turn with a little wobble (1 deg)
+        cal.add(distort(m));
+        if (i == 177) CHECK(cal.coverage() >= 45 && cal.coverage() <= 55); // half way round
+    }
+    CHECK(cal.coverage() >= 95);
+    const char *why = nullptr;
+    CHECK(cal.finish(&mc, &why) && mc.valid && !cal.active());
+    CHECK_NEAR(mc.off[0], 35, 0.6);
+    CHECK_NEAR(mc.off[1], -22, 0.6);
+    double worst = 0, worstRaw = 0;
+    for (int i = 0; i < 360; i += 7) {
+        synth(i, 0, 0, &m, &a);
+        Vec3 d = distort(m);
+        worst = fmax(worst, angdiff(compass_heading(magcal_apply(mc, d), &a, nullptr), i));
+        worstRaw = fmax(worstRaw, angdiff(compass_heading(d, &a, nullptr), i));
+    }
+    CHECK(worst < 2.0);
+    CHECK(mc.off[2] == 0 && mc.scale[2] == 1); // flat turn: Z left alone
+    CHECK(worstRaw > 20.0); // the uncalibrated data really was bad
+    // a half turn is refused
+    cal.start();
+    for (int i = 0; i < 150; ++i) {
+        synth(i, 0, 0, &m, &a);
+        cal.add(distort(m));
+    }
+    MagCalibration before = mc;
+    CHECK(!cal.finish(&mc, &why) && why && strstr(why, "360"));
+    // a tumble (all orientations) calibrates Z too
+    cal.start();
+    for (int i = 0; i < 360; i += 2)
+        for (int r = -60; r <= 60; r += 30) {
+            synth(i, r, 0, &m, &a);
+            cal.add(distort(m));
+        }
+    MagCalibration tumble;
+    magcal_identity(&tumble);
+    CHECK(cal.finish(&tumble, &why) && tumble.off[2] != 0);
+    CHECK_NEAR(tumble.off[0], 35, 1.0);
+    CHECK(mc.off[0] == before.off[0]);
+    cal.start();
+    CHECK(!cal.finish(&mc, &why) && strstr(why, "samples"));
+
+    AngleFilter f;
+    CHECK(!f.ready());
+    f.update(350, 1);
+    for (int i = 0; i < 50; ++i) f.update(10, 0.2f);
+    CHECK(angdiff(f.value(), 10) < 0.1);
+    f.reset();
+    f.update(359, 1);
+    f.update(1, 0.5f);
+    CHECK(angdiff(f.value(), 0) < 0.01); // no jump through 180
+}
+
+static void test_autohome()
+{
+    AutoHome ah;
+    NmeaFix f = {true, 1, 9, 0.9f, 48.0, 2.0, 100.0f, 0};
+    CHECK(ah.state() == AutoHome::WAITING);
+    NmeaFix bad = f;
+    bad.hdop = 5;
+    CHECK(!ah.feed(bad, 0, 6));
+    bad = f;
+    bad.sats = 4;
+    CHECK(!ah.feed(bad, 0, 6) && ah.state() == AutoHome::WAITING);
+    uint32_t t = 1000;
+    bool locked = false;
+    for (int i = 0; i < 40 && !locked; ++i) {
+        f.lat = 48.0 + ((i % 2) ? 1e-5 : -1e-5);
+        f.alt_m = 100.0f + ((i % 2) ? 2.0f : -2.0f);
+        locked = ah.feed(f, t, 6);
+        if (!locked) {
+            CHECK(!ah.feed(f, t + 100, 6)); // too soon: ignored
+            CHECK(ah.state() == AutoHome::AVERAGING);
+        }
+        t += 600;
+    }
+    CHECK(locked && ah.state() == AutoHome::LOCKED && ah.progress() == 100);
+    CHECK_NEAR(ah.lat(), 48.0, 1e-9);
+    CHECK_NEAR(ah.alt(), 100.0, 1e-3);
+    CHECK(!ah.feed(f, t + 1000, 6)); // returns true only once
+    ah.reset();
+    CHECK(ah.state() == AutoHome::WAITING && ah.progress() == 0);
+}
+
+static void test_tracker_baro_and_config()
+{
+    Tracker t;
+    t.begin();
+    CHECK(t.cfg.auto_home == 1 && t.cfg.auto_north == 1 && t.cfg.gps_baud == 0 && !t.cfg.magcal.valid);
+    t.setHome(48.0, 2.0, 100.0f, HOME_SRC_GPS);
+    CHECK(t.cfg.home_src == HOME_SRC_GPS);
+    CrsfGps g = {480090000, 20000000, 50, 0, 160, 12}; // ~1 km north, 60 m above home by GPS
+    t.onGps(g, 1000);
+    CHECK_NEAR(t.heightAboveHome(), 60, 1e-6);
+    CHECK(!t.usedBaro());
+    t.cfg.alt_src = 1;
+    t.onDroneBaro(45.0f, 1100);
+    t.onGps(g, 1200);
+    CHECK(t.usedBaro());
+    CHECK_NEAR(t.heightAboveHome(), 45, 1e-6);
+    CHECK_NEAR(t.elevation(), atan2(45.0, t.groundDistance()) * 180 / M_PI, 1e-6);
+    // stale baro: back to GPS
+    t.onGps(g, 1200 + t.cfg.lost_ms + 10);
+    CHECK(!t.usedBaro());
+    t.clearHome();
+    CHECK(t.cfg.home_src == HOME_SRC_NONE);
+    CHECK(t.setHomeFromDrone(1200 + t.cfg.lost_ms + 10) && t.cfg.home_src == HOME_SRC_DRONE);
+
+    char err[48];
+    TrackerConfig c;
+    cfg_default(&c);
+    CHECK(cfg_set(&c, "gps_baud", 38400, err) && c.gps_baud == 38400);
+    CHECK(cfg_set(&c, "compass_mount", -90, err) && c.compass_mount == -90.0f);
+    CHECK(cfg_set(&c, "declination", 2.5, err) && c.declination == 2.5f);
+    CHECK(cfg_set(&c, "alt_src", 1, err) && c.alt_src == 1);
+    CHECK(!cfg_set(&c, "alt_src", 2, err));
+    CHECK(!cfg_set(&c, "declination", 90, err));
+    CHECK(strstr(cfg_keys(), "auto_north") != nullptr);
+
+    Cmd cmd;
+    CHECK(cmd_parse("home gps", &cmd) && cmd.type == CMD_HOME_GPS && strcmp(cmd_name(cmd.type), "HOME GPS") == 0);
+    CHECK(cmd_parse("CAL MAG START", &cmd) && cmd.type == CMD_CAL_START);
+    CHECK(cmd_parse("cal mag stop", &cmd) && cmd.type == CMD_CAL_STOP && strcmp(cmd_name(cmd.type), "CAL MAG STOP") == 0);
+    CHECK(cmd_parse("CAL MAG CLEAR", &cmd) && cmd.type == CMD_CAL_CLEAR);
+    CHECK(!cmd_parse("CAL MAG", &cmd) && cmd.type == CMD_ERROR);
+    CHECK(!cmd_parse("CAL ACC START", &cmd));
+
+    char b[640];
+    int n = json_config(b, sizeof(b), c);
+    CHECK(n > 0 && strstr(b, "\"gps_baud\":38400") && strstr(b, "\"magcal\":false") && strstr(b, "\"alt_src\":1"));
+    n = json_tracker(b, sizeof(b), 2000, t);
+    CHECK(n > 0 && strstr(b, "\"hsrc\":\"drone\"") && strstr(b, "\"altsrc\":\"gps\""));
+    NmeaFix f = {true, 1, 9, 0.9f, 48.1, 2.2, 101.5f, 33};
+    AutoHome ah;
+    n = json_tracker_gps(b, sizeof(b), 3000, f, 38400, ah, 120, 2);
+    CHECK(n > 0 && strstr(b, "\"e\":\"tgps\"") && strstr(b, "\"fix\":true") && strstr(b, "\"ahome\":\"waiting\"") &&
+          strstr(b, "\"baud\":38400"));
+    SensorReport r = {"MPU6050", "HMC5883L", "", true, 211.0f, 213.5f, true, 1.5f, 1, 0, false, 0, 0, true};
+    n = json_sensors(b, sizeof(b), 4000, r);
+    CHECK(n > 0 && strstr(b, "\"hdg\":213.5") && strstr(b, "\"hpa\":null") && strstr(b, "\"cal\":\"ok\"") &&
+          strstr(b, "\"baro\":\"\"") && strstr(b, "\"north\":true"));
+}
+
+static void test_screen()
+{
+    Tracker t;
+    t.begin();
+    ScreenData d;
+    memset(&d, 0, sizeof(d));
+    d.trk = &t;
+    d.rx_age_ms = 0xFFFFFFFFu;
+    ScreenLine l[SCREEN_LINES];
+    for (uint8_t p = 0; p < PAGE_COUNT; ++p) {
+        int n = screen_page(p, d, l);
+        CHECK(n > 3 && n <= SCREEN_LINES);
+        for (int i = 0; i < n; ++i) CHECK(strlen(l[i].text) <= (size_t)(l[i].size == 2 ? SCREEN_COLS / 2 : SCREEN_COLS));
+    }
+    int n = screen_page(PAGE_LINK, d, l);
+    CHECK(strstr(l[0].text, "NO UID") && l[0].color == SC_RED);
+    CHECK(strstr(l[1].text, "NO TELEM"));
+    CHECK(strstr(l[2].text, "BIND"));
+
+    // bound, receiving, with telemetry, tracker GPS averaging
+    d.has_uid = true;
+    d.espnow = true;
+    uid_from_phrase("my phrase", d.uid);
+    d.rx_age_ms = 300;
+    d.rx_per_s = 12;
+    d.has_link = true;
+    d.link.up_lq = 99;
+    d.link.up_rssi1_dbm = -60;
+    d.link.tx_power_idx = 7;
+    d.has_bat = true;
+    d.bat.volts = 16.4f;
+    d.bat.percent = 70;
+    strcpy(d.mode, "ACRO");
+    d.tgps_present = true;
+    d.tfix = {true, 1, 9, 0.9f, 48.1, 2.2, 101.5f, 10};
+    d.tgps_baud = 38400;
+    d.ahome_state = AutoHome::AVERAGING;
+    d.ahome_pct = 40;
+    n = screen_page(PAGE_LINK, d, l);
+    CHECK(strstr(l[0].text, "RX OK") && l[0].color == SC_GREEN);
+    CHECK(strstr(l[1].text, "LQ 99") && l[1].size == 2);
+    CHECK(strstr(l[2].text, "3b933b37b1e4"));
+    bool sawAvg = false, sawTx = false;
+    for (int i = 0; i < n; ++i) {
+        sawAvg |= strstr(l[i].text, "averaging GPS 40%") != nullptr;
+        sawTx |= strstr(l[i].text, "250mW") != nullptr;
+    }
+    CHECK(sawAvg && sawTx);
+
+    // tracking page with geometry
+    t.setHome(48.0, 2.0, 100.0f, HOME_SRC_GPS);
+    CrsfGps g = {480090000, 20000000, 50, 0, 160, 12};
+    t.onGps(g, 1000);
+    d.now_ms = 1100;
+    n = screen_page(PAGE_TRACK, d, l);
+    CHECK(strstr(l[1].text, "1.00km +60m"));
+    CHECK(strstr(l[2].text, "Az 0.0"));
+    bool sawTracking = false, sawHome = false;
+    for (int i = 0; i < n; ++i) {
+        sawTracking |= strstr(l[i].text, "tracking") != nullptr;
+        sawHome |= strstr(l[i].text, "Home set (gps)") != nullptr;
+    }
+    CHECK(sawTracking && sawHome);
+
+    // sensors page
+    d.sens = {"MPU6050", "HMC5883L", "BMP180", true, 211.0f, 213.4f, true, 7.0f, 0, 0, true, 101320.0f, 12.3f, false};
+    n = screen_page(PAGE_SENSORS, d, l);
+    CHECK(strstr(l[1].text, "HDG 213") && l[1].color == SC_AMBER); // not calibrated
+    CHECK(strstr(l[2].text, "tilt 7.0") && l[2].color == SC_AMBER);
+    CHECK(strstr(l[3].text, "NOT CALIBRATED"));
+    CHECK(strstr(l[4].text, "1013.2hPa"));
+    d.sens.cal = 2;
+    d.sens.cal_cov = 55;
+    screen_page(PAGE_SENSORS, d, l);
+    CHECK(strstr(l[1].text, "CAL 55%"));
+}
+
 int main()
 {
     test_crc8();
@@ -493,6 +884,12 @@ int main()
     test_tracker();
     test_commands();
     test_json();
+    test_nmea();
+    test_baro();
+    test_compass();
+    test_autohome();
+    test_tracker_baro_and_config();
+    test_screen();
     printf("%d checks, %d failed\n", g_checks, g_fail);
     return g_fail ? 1 : 0;
 }

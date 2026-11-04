@@ -177,6 +177,16 @@
     $('btn-clear').onclick = () => fetch('/api/track/clear', { method: 'POST' });
 
     $('btn-home-drone').onclick = () => sendCmd('HOME DRONE');
+    $('btn-home-tgps').onclick = () => sendCmd('HOME GPS');
+    $('btn-cal').onclick = () => sendCmd(state && state.sens && state.sens.cal === 'running' ? 'CAL MAG STOP' : 'CAL MAG START');
+    $('btn-cal-clear').onclick = () => sendCmd('CAL MAG CLEAR');
+    document.querySelectorAll('[data-north]').forEach((b) => (b.onclick = () => sendCmd(`SET auto_north ${b.dataset.north}`)));
+    document.querySelectorAll('[data-altsrc]').forEach((b) => (b.onclick = () => sendCmd(`SET alt_src ${b.dataset.altsrc}`)));
+    $('btn-decl').onclick = () => {
+      const d = parseFloat($('in-decl').value), m = parseFloat($('in-mount').value);
+      if (num(d)) sendCmd(`SET declination ${d}`);
+      if (num(m)) sendCmd(`SET compass_mount ${m}`);
+    };
     $('btn-home-clear').onclick = () => sendCmd('HOME CLEAR');
     $('btn-home-map').onclick = () => setPlacingHome(!placingHome);
     $('btn-home-geo').onclick = () => {
@@ -392,7 +402,8 @@
 
     // tracker panel
     set('v-tstat', trackerStatus(trk) || '–');
-    set('v-home', trk && trk.home ? `${trk.hlat.toFixed(5)}, ${trk.hlon.toFixed(5)}, ${Math.round(trk.halt)} m` : 'not set');
+    const HSRC = { gps: 'tracker GPS', drone: 'drone', manual: 'typed / map' };
+    set('v-home', trk && trk.home ? `${trk.hlat.toFixed(5)}, ${trk.hlon.toFixed(5)}, ${Math.round(trk.halt)} m${HSRC[trk.hsrc] ? ` (${HSRC[trk.hsrc]})` : ''}` : 'not set');
     set('v-azel', trk && num(trk.az) ? `${trk.az.toFixed(1)}° / ${trk.el.toFixed(1)}°` : '–');
     set('v-pantilt', trk ? `${trk.pan.toFixed(0)}° / ${trk.tilt.toFixed(0)}°${trk.flip ? ' (flipped)' : ''}` : '–');
     if (trk) { $('m-pan').style.left = `calc(${(trk.pan / 180) * 100}% - 2px)`; $('m-tilt').style.left = `calc(${(trk.tilt / 180) * 100}% - 2px)`; }
@@ -407,6 +418,8 @@
       $('in-offset').value = c.offset;
       $('in-offset').dataset.shown = String(c.offset);
     }
+
+    renderTrackerSensors(s);
 
     // link panel
     set('v-lq', rf ? `${rf.lq} %` : '–');
@@ -449,6 +462,64 @@
       homeLine.setLatLngs([]);
     }
     maybeAutoWeather();
+  }
+
+  function fillOnce(id, value) {
+    const el = $(id);
+    if (value === undefined || value === null || document.activeElement === el || el.dataset.shown === String(value)) return;
+    el.value = value;
+    el.dataset.shown = String(value);
+  }
+
+  function renderTrackerSensors(s) {
+    const { tgps, sens, cfg: c, trk } = s;
+    const gpsOn = tgps && tgps.age < 5;
+    const sensOn = sens && sens.age < 5 && (sens.imu || sens.mag || sens.baro);
+    $('sens-none').classList.toggle('hidden', !!(gpsOn || sensOn));
+    $('sens-block').classList.toggle('hidden', !(gpsOn || sensOn));
+    $('btn-home-tgps').classList.toggle('hidden', !gpsOn);
+    $('btn-home-tgps').disabled = !(gpsOn && tgps.fix);
+
+    if (!gpsOn) set('v-tgps', 'not connected');
+    else {
+      const ah = tgps.ahome === 'averaging' ? `, averaging ${tgps.ahome_pct}%` : tgps.ahome === 'locked' ? ', home locked' : '';
+      set('v-tgps', `${tgps.sats} sats, ${tgps.fix ? 'fix' : 'no fix'}, HDOP ${tgps.hdop.toFixed(1)}${ah}`);
+      $('v-tgps').title = `${tgps.baud} baud, ${tgps.good} good / ${tgps.bad} bad sentences`;
+    }
+    $('v-tgps').className = gpsOn ? (tgps.fix ? 'ok-t' : 'caution-t') : '';
+
+    const running = sensOn && sens.cal === 'running';
+    if (sensOn && sens.mag) {
+      const state_ = running ? `calibrating, ${sens.cal_cov}% of the turn` : sens.cal === 'ok' ? 'calibrated' : 'not calibrated';
+      set('v-compass', `${num(sens.hdg) ? Math.round(sens.hdg) + '° true, ' : ''}${state_} (${sens.mag})`);
+      $('v-compass').className = sens.cal === 'ok' ? 'ok-t' : 'caution-t';
+    } else {
+      set('v-compass', 'none');
+      $('v-compass').className = '';
+    }
+    set('v-level', sensOn && num(sens.tilt) ? `${sens.tilt.toFixed(1)}° from level (${sens.imu})` : 'no accelerometer');
+    $('v-level').className = sensOn && num(sens.tilt) ? (sens.tilt > 5 ? 'caution-t' : 'ok-t') : '';
+    set('v-tbaro', sensOn && num(sens.hpa) ? `${sens.hpa.toFixed(1)} hPa, ${sens.temp.toFixed(1)} °C (${sens.baro})` : sensOn && sens.baro ? `${sens.baro}, no reading` : 'none');
+
+    const hasMag = sensOn && !!sens.mag;
+    $('row-cal').classList.toggle('hidden', !hasMag);
+    $('row-north').classList.toggle('hidden', !hasMag);
+    $('row-decl').classList.toggle('hidden', !hasMag);
+    $('cal-hint').classList.toggle('hidden', !running);
+    set('btn-cal', running ? 'Finish calibration' : 'Calibrate compass');
+    $('btn-cal').classList.toggle('on', running);
+    if (c) {
+      document.querySelectorAll('[data-north]').forEach((b) => b.classList.toggle('on', String(c.auto_north) === b.dataset.north));
+      document.querySelectorAll('[data-altsrc]').forEach((b) => b.classList.toggle('on', String(c.alt_src) === b.dataset.altsrc));
+      fillOnce('in-decl', c.declination);
+      fillOnce('in-mount', c.compass_mount);
+    }
+    // the typed azimuth is meaningless while the compass drives it
+    const northDriven = sensOn && sens.north;
+    $('in-offset').disabled = northDriven;
+    $('btn-offset').disabled = northDriven;
+    if (northDriven && trk && num(trk.offset)) { $('in-offset').value = trk.offset.toFixed(1); $('in-offset').dataset.shown = ''; }
+    $('in-offset').title = northDriven ? 'Set by the compass (choose "Typed azimuth" to enter it by hand)' : '';
   }
 
   function trackerStatus(trk) {

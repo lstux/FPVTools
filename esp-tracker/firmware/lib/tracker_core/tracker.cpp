@@ -7,6 +7,7 @@ void Tracker::begin()
     cfg_default(&cfg);
     mode_ = AUTO;
     hasGps_ = false;
+    hasBaro_ = false;
     geoValid_ = false;
     mapper_.reset();
     flipped_ = false;
@@ -28,6 +29,14 @@ void Tracker::onGps(const CrsfGps &gps, uint32_t now_ms)
     recompute();
 }
 
+void Tracker::onDroneBaro(float alt_m, uint32_t now_ms)
+{
+    baroAlt_ = alt_m;
+    baroMs_ = now_ms;
+    hasBaro_ = true;
+    // The GPS frame drives the update rate; the baro value is picked up at the next recompute.
+}
+
 void Tracker::recompute()
 {
     if (!cfg.home_valid || !gpsQualityOk()) {
@@ -39,7 +48,11 @@ void Tracker::recompute()
     const double lat = gps_.lat_e7 / 1e7, lon = gps_.lon_e7 / 1e7;
     az_ = geo_bearing_deg(cfg.home_lat, cfg.home_lon, lat, lon);
     dist_ = geo_distance_m(cfg.home_lat, cfg.home_lon, lat, lon);
-    const double dalt = (double)gps_.alt_m - (double)cfg.home_alt;
+    // Baro is only trusted while it is about as fresh as the GPS frame we are using.
+    usedBaro_ = cfg.alt_src == 1 && hasBaro_ && (int32_t)(gpsMs_ - baroMs_) < (int32_t)cfg.lost_ms &&
+                (int32_t)(baroMs_ - gpsMs_) < (int32_t)cfg.lost_ms;
+    const double dalt = usedBaro_ ? (double)baroAlt_ : (double)gps_.alt_m - (double)cfg.home_alt;
+    dalt_ = dalt;
     el_ = geo_elevation_deg(dist_, dalt);
     d3_ = sqrt(dist_ * dist_ + dalt * dalt);
     geoValid_ = true;
@@ -55,13 +68,14 @@ void Tracker::recompute()
 bool Tracker::setHomeFromDrone(uint32_t now_ms)
 {
     if (!gpsQualityOk() || (now_ms - gpsMs_) > cfg.lost_ms) return false;
-    setHome(gps_.lat_e7 / 1e7, gps_.lon_e7 / 1e7, (float)gps_.alt_m);
+    setHome(gps_.lat_e7 / 1e7, gps_.lon_e7 / 1e7, (float)gps_.alt_m, HOME_SRC_DRONE);
     return true;
 }
 
-void Tracker::setHome(double lat, double lon, float alt_m)
+void Tracker::setHome(double lat, double lon, float alt_m, uint8_t src)
 {
     cfg.home_valid = 1;
+    cfg.home_src = src;
     cfg.home_lat = lat;
     cfg.home_lon = lon;
     cfg.home_alt = alt_m;
@@ -71,6 +85,7 @@ void Tracker::setHome(double lat, double lon, float alt_m)
 void Tracker::clearHome()
 {
     cfg.home_valid = 0;
+    cfg.home_src = HOME_SRC_NONE;
     geoValid_ = false;
 }
 

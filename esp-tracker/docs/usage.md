@@ -9,6 +9,9 @@ Everything you need to go from parts to a working tracker. For *how it works* se
   an ExpressLRS receiver on a drone that sends GPS telemetry (flight controller with GPS, CRSF telemetry
   enabled).
 * An ESP32-C3, ESP32-S2 or classic ESP32 board (USB native on C3/S2, USB-UART bridge on most classic ones).
+  The LilyGO **TTGO TS v1.2** has its own build with the status screen and buttons.
+* Optional, on the tracker: a GPS module (automatic home), a compass + accelerometer (automatic north, level
+  check) and a barometer, e.g. a "10DOF" I2C board. See [Sensors on the tracker](#sensors-on-the-tracker).
 * Two hobby servos (pan + tilt) and a 5 V supply for them (a BEC or a power bank, **not** the board's 3.3 V pin).
 * A computer for the ground station: Raspberry Pi 3B, Orange Pi, a PC... (Linux amd64/arm64, Windows, macOS: it is
   plain Python).
@@ -22,6 +25,8 @@ Everything you need to go from parts to a working tracker. For *how it works* se
 | Servo power | external 5 V |
 | Ground | servo ground **and** board ground joined |
 | Board power / data | USB to the host |
+| I2C sensors SDA / SCL (optional) | `PIN_SDA` / `PIN_SCL` (C3: 6/7, S2: 8/9, ESP32 and TTGO TS: 21/22), module powered from 3.3 V |
+| GPS TX → board (optional) | `PIN_GPS_RX` (C3: 20, S2: 18, ESP32: 16, TTGO TS: 32); GPS powered from 3.3 V or 5 V as its board says |
 
 These pin defaults are build flags in [`firmware/platformio.ini`](../firmware/platformio.ini). **Check them against
 your board's pinout** (a pin may be used by an SD card slot, a display, a strapping function...) and change
@@ -32,6 +37,76 @@ Mounting: tilt `0°` = antennas horizontal pointing in the pan direction, `90°`
 the opposite way. With two 180° servos the tracker reaches the whole circle by going "over the top" (see
 [architecture](architecture.md#pointing-maths)).
 
+### Sensors on the tracker
+
+All optional and detected at boot; the **Sensors on the tracker** block of the *Tracker* panel (and the TTGO screen)
+shows what was found.
+
+| Part | Chips recognised | What it does |
+| --- | --- | --- |
+| GPS module (UART, NMEA) | any: BN-880, BN-220, NEO-6M/M8N... (GPS, GLONASS, Galileo, BeiDou talkers) | **automatic home**: after a good fix (≥ `min_sats`, HDOP ≤ 2.5) it averages 20 positions (~10 s) and sets the tracker position and altitude. The speed is detected (9600, 38400, 57600, 115200...) unless you `SET gps_baud`. |
+| Compass | HMC5883L, QMC5883L (GY-271, GY-87, BN-880), AK8963 (inside an MPU9250, GY-91) | **automatic north**: once calibrated, the azimuth of the pan centre (`offset`) follows the compass, so you no longer measure it by hand. |
+| Accelerometer | MPU6050, MPU6500, MPU9250, ADXL345 | tilt compensation of the compass and a **level** reading (the tracker should stand within a few degrees of level). The gyro is not used: the tracker does not move. |
+| Barometer | BMP085/BMP180, BMP280, BME280 | pressure and temperature at the field (shown in the UI). |
+
+A "10DOF" board such as the GY-87 (MPU6050 + HMC5883L or QMC5883L + BMP180) provides the last three on one I2C bus;
+its compass sits behind the MPU6050 and is reached through the MPU's bypass mode, which the firmware enables.
+
+**Mounting the compass.** Put it on the **fixed base** of the tracker (not on the part that pans), flat, components up,
+at least 10 cm away from the servos, the VRX and any steel or magnet. Point the arrow printed for the X axis in the
+direction the antenna looks at pan = 0 (`AIM 0 0`). If you cannot, measure the angle between the two and enter it as
+*Compass mounting* (`SET compass_mount <deg>`, positive clockwise).
+
+**Calibrating.** Required once per mounting (the screws, the servos and the board itself shift the readings):
+*Tracker → Calibrate compass* (or `CAL MAG START`), turn the whole tracker slowly through one full circle, **keeping it
+flat**, in about 20 s, then *Finish calibration* (`CAL MAG STOP`) and *Save to tracker* (`SAVE`). The progress shows the
+share of the circle covered; if the turn was incomplete the tracker says so and keeps the previous calibration. *Forget
+calibration* (`CAL MAG CLEAR`) goes back to raw readings.
+
+**Declination.** GPS bearings are relative to true north, the compass to magnetic north: enter your local magnetic
+declination (east positive, a couple of degrees east in France in 2026; look yours up with the NOAA
+[magnetic field calculator](https://www.ngdc.noaa.gov/geomag/calculators/magcalc.shtml)) as *Magnetic declination*
+(`SET declination 2.1`).
+
+**North from compass / Typed azimuth** (`SET auto_north 1|0`) chooses whether the compass or the number you typed sets
+the pan centre azimuth. Automatic north only applies once the compass is calibrated.
+
+**Automatic home** (`SET auto_home 1|0`) applies when no home was chosen by hand: a home taken from the drone, the map or
+typed coordinates is never overwritten. *Use tracker GPS* (`HOME GPS`) measures it again (e.g. after moving the
+tracker). A home that came from the tracker GPS is re-measured at every power-up, since the tracker may be at a new field.
+
+**Height from drone baro** (`SET alt_src 1`): the elevation angle normally uses the drone's GPS altitude minus the tracker
+altitude. GPS altitude wanders by several metres; the flight controller's barometer is much steadier but measures from
+where the drone was powered. If you plug the battery in next to the tracker, this gives a better elevation, especially
+close in. It falls back to GPS when the drone sends no baro altitude.
+
+### LilyGO TTGO TS v1.2
+
+Build `ttgo_ts`. The board has a 1.8" ST7735 screen (160×128), three buttons and the I2C pins on its header:
+
+| Use | GPIO |
+| --- | --- |
+| Pan / tilt servos | 26 / 33 |
+| I2C sensors SDA / SCL | 21 / 22 |
+| GPS module TX → | 32 |
+| Buttons 1 / 2 / 3 | 34 / 35 / 39 |
+| Screen (internal) | CS 16, DC 17, MOSI 23, SCLK 5, backlight 27 |
+
+The screen lets you check everything without a computer. The coloured top bar is green when telemetry arrives, amber
+when it stopped, red when the receiver is not set up (no UID).
+
+* **Link**: LQ and RSSI (big), the UID and whether ESP-NOW runs, packets per second and the age of the last one, drone
+  satellites, battery and flight mode, TX power, tracker GPS and home state.
+* **Track**: distance and height above home (big), azimuth/elevation, pan/tilt (and *FLIP* when going over the top),
+  auto/manual and tracking state, the pan offset (and whether the compass sets it), the height source, home position.
+* **Sensors**: compass heading (big), accelerometer and level, compass calibration state, barometer, tracker GPS details.
+
+Buttons: **1** next page; **hold 2** sets the home (tracker GPS if it has a fix, otherwise the drone's position), or
+starts/finishes the compass calibration on the *Sensors* page; **hold 3** saves to flash. A message on the last line
+confirms each action. If the buttons are in another order on your board, swap `PIN_BTN1..3` in `platformio.ini`; if the
+picture is shifted by a few pixels or the colours are wrong, try `-DTFT_TAB=INITR_BLACKTAB` (or `INITR_REDTAB`) and
+`-DTFT_SWAP_RB=1`.
+
 ## 3. Flash the firmware
 
 Install [PlatformIO](https://platformio.org/install/cli) (`pip install platformio`), then from `firmware/`:
@@ -39,7 +114,8 @@ Install [PlatformIO](https://platformio.org/install/cli) (`pip install platformi
 ```sh
 pio run -e esp32c3 -t upload      # ESP32-C3
 pio run -e esp32s2 -t upload      # ESP32-S2 (hold BOOT while plugging in if it is not detected)
-pio run -e esp32   -t upload      # classic ESP32 (e.g. LilyGO TTGO boards)
+pio run -e esp32   -t upload      # classic ESP32 dev board
+pio run -e ttgo_ts -t upload      # LilyGO TTGO TS v1.2 (screen + buttons)
 pio device monitor                # JSON lines scroll by; type HELP
 ```
 
@@ -200,8 +276,9 @@ count is guessed from the highest voltage seen (set it in **Display** if you plu
 
 ### Telling the tracker where it is ("home")
 
-The tracker has no GPS: it needs its own position **and altitude above sea level**, because the elevation angle uses
-the height difference to the drone.
+The tracker needs its own position **and altitude above sea level**, because the elevation angle uses the height
+difference to the drone. With a GPS module on the tracker this is automatic (see
+[Sensors on the tracker](#sensors-on-the-tracker)); otherwise use one of these:
 
 | Button | When to use it |
 | --- | --- |
@@ -218,7 +295,7 @@ the height difference to the drone.
 1. **Servo travel.** Switch to *Manual*, move the sliders to the ends and look at the mechanics. The defaults map
    0–180° to 500–2500 µs. Adjust to your servos and mount: `SET pan_min_us 600`, `SET pan_max_us 2400`, same for
    `tilt_*`. Use `SET pan_invert 1` / `SET tilt_invert 1` if a servo moves the wrong way. Then `SAVE`.
-2. **Pan zero azimuth.** Point the pan servo at 0° (`AIM 0 0`) and measure the compass bearing the antenna now points
+2. **Pan zero azimuth** (skip this with a calibrated compass and *North from compass*). Point the pan servo at 0° (`AIM 0 0`) and measure the compass bearing the antenna now points
    to (a phone compass is fine; add your local magnetic declination, GPS bearings are relative to *true* north).
    Enter it in *Azimuth of the pan centre* (or `SET offset 215`). Then `SAVE`.
 3. **Check** in *Auto* mode with the drone (or `--simulate`): the tracker status says *tracking* and the antennas follow.
@@ -238,9 +315,11 @@ One command per line, case-insensitive; the answers are JSON lines (`ack`, `err`
 | `UID <12 hex \| d,d,d,d,d,d>` | store the UID directly, then reboot |
 | `HOME <lat> <lon> <alt>` | tracker position (degrees, metres above sea level) |
 | `HOME DRONE` | use the drone's current GPS position; `HOME CLEAR` forgets it |
+| `HOME GPS` | measure the home again with the tracker's own GPS (averaged over ~10 s) |
+| `CAL MAG START` / `CAL MAG STOP` / `CAL MAG CLEAR` | compass calibration: start, finish (keeps it if the turn was complete), forget |
 | `MODE AUTO` / `MODE MANUAL` | follow the drone / hold the servos where you put them |
 | `AIM <pan> <tilt>` | manual angles 0–180 (implies manual mode) |
-| `SET <key> <value>` | `offset hyst slew pan_min_us pan_max_us tilt_min_us tilt_max_us pan_invert tilt_invert min_sats lost_ms` |
+| `SET <key> <value>` | `offset hyst slew pan_min_us pan_max_us tilt_min_us tilt_max_us pan_invert tilt_invert min_sats lost_ms`, and for the tracker sensors `alt_src` (0 GPS, 1 drone baro), `auto_home`, `auto_north` (0/1), `compass_mount`, `declination` (degrees), `gps_baud` (0 = detect) |
 | `SAVE` | persist the configuration (including home) in flash |
 | `FACTORY` | erase the stored configuration and reboot |
 | `REBOOT` | restart the board |
@@ -260,6 +339,10 @@ Open the console or `pio device monitor` and read the `stat` line (every 2 s):
 | `dropped` > 0 | The board's main loop was starved (long serial blocking); keep the host connected or reduce other USB load. |
 | UI says "no tracker" | Wrong port, missing `dialout` permission, or another program (serial monitor) holds the port. |
 | Antenna points the wrong way | Pan zero azimuth, or servo inversion, or a mirrored mount: see calibration. |
+| `sens` says the compass is not found | Wrong SDA/SCL, module not powered, or a compass the firmware does not know (the console shows the detected chips at boot in the `sens` line). |
+| Heading jumps when the servos move | The compass is too close to the servos' magnets / currents: move it away, on the fixed base, and calibrate again. |
+| Heading is off by a constant angle | Declination or compass mounting angle; or the compass X arrow is not aligned with pan = 0. |
+| Tracker GPS shows no NMEA | GPS TX not on `PIN_GPS_RX`, or no common ground; check the `tgps` line: `good` must grow. |
 | Servos jitter or the board resets when they move | Servo power is shared with the board: give the servos their own 5 V supply and a common ground. |
 
 ## 9. Known limits and ideas

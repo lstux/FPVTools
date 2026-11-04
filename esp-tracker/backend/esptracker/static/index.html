@@ -68,6 +68,7 @@
 
         <h3>Set the tracker position</h3>
         <div class="row">
+          <button id="btn-home-tgps" class="hidden" title="Average the GPS module of the tracker for ~10 s">Use tracker GPS</button>
           <button id="btn-home-drone" title="Drone sitting next to the tracker with 6+ satellites">Use drone position</button>
           <button id="btn-home-geo" title="Uses this device's GPS (needs https or localhost)">Use this device</button>
           <button id="btn-home-map" title="Then click on the map">Pick on map</button>
@@ -80,12 +81,45 @@
           <button id="btn-halt-drone" class="quiet" title="Copy the drone's current GPS altitude">Copy drone altitude</button>
         </div>
 
+        <h3>Sensors on the tracker</h3>
+        <p class="fine" id="sens-none">No GPS, compass or barometer on the tracker. They are optional: see the usage guide.</p>
+        <div id="sens-block" class="hidden">
+          <dl class="readout">
+            <dt>GPS</dt><dd id="v-tgps">–</dd>
+            <dt>Compass</dt><dd id="v-compass">–</dd>
+            <dt>Level</dt><dd id="v-level">–</dd>
+            <dt>Barometer</dt><dd id="v-tbaro">–</dd>
+          </dl>
+          <div class="row" id="row-cal">
+            <button id="btn-cal">Calibrate compass</button>
+            <button id="btn-cal-clear" class="quiet">Forget calibration</button>
+          </div>
+          <p class="fine hidden" id="cal-hint">Turn the tracker slowly through one full circle, keeping it flat, then press <b>Finish calibration</b>. Keep it away from metal and the servos' magnets. Then <b>Save to tracker</b>.</p>
+          <div class="row seg" role="group" aria-label="North reference" id="row-north">
+            <button data-north="1" title="The compass sets the azimuth of the pan centre">North from compass</button>
+            <button data-north="0" title="Use the azimuth typed below">Typed azimuth</button>
+          </div>
+          <div class="row" id="row-decl">
+            <label>Magnetic declination (° east)
+              <input id="in-decl" type="number" step="0.1" min="-40" max="40" placeholder="0">
+            </label>
+            <label>Compass mounting (°)
+              <input id="in-mount" type="number" step="1" min="-360" max="360" placeholder="0">
+            </label>
+            <button id="btn-decl">Apply</button>
+          </div>
+        </div>
+
         <h3>Pointing</h3>
         <div class="row">
           <label>Azimuth of the pan centre (°)
             <input id="in-offset" type="number" min="0" max="360" step="1" placeholder="0">
           </label>
           <button id="btn-offset">Apply</button>
+        </div>
+        <div class="row seg" role="group" aria-label="Height used for the elevation">
+          <button data-altsrc="0" title="Drone GPS altitude minus the tracker altitude">Height from GPS</button>
+          <button data-altsrc="1" title="Drone barometer: more stable, assumes the drone was powered next to the tracker">Height from drone baro</button>
         </div>
         <div class="row seg" role="group" aria-label="Tracker mode">
           <button id="btn-auto">Auto</button>

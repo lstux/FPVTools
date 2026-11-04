@@ -17,7 +17,7 @@ from .state import State
 
 log = logging.getLogger("esptracker.sources")
 
-ALLOWED_VERBS = {"HELP", "PING", "STATUS", "BIND", "UID", "HOME", "MODE", "AIM", "SET", "SAVE", "FACTORY", "REBOOT"}
+ALLOWED_VERBS = {"HELP", "PING", "STATUS", "BIND", "UID", "HOME", "MODE", "AIM", "SET", "SAVE", "FACTORY", "REBOOT", "CAL"}
 MAX_COMMAND_LEN = 100
 
 
@@ -222,7 +222,19 @@ class SimulatorSource(Source):
             "tilt_invert": 0,
             "min_sats": 6,
             "lost_ms": 5000,
+            "home_src": 0,
+            "alt_src": 0,
+            "auto_home": 1,
+            "auto_north": 1,
+            "compass_mount": 0.0,
+            "declination": 1.5,
+            "gps_baud": 0,
+            "magcal": False,
         }
+        # simulated tracker sensors: a GPS module next to the circle centre and a compass whose
+        # pan = 0 direction points 215 deg
+        self.base_heading = 215.0
+        self.cal_started: Optional[float] = None
         self.mode = "auto"
         self.manual = (90.0, 0.0)
         self.counters = {"espnow": 0, "msp_ok": 0, "msp_bad": 0, "crsf_ok": 0, "crsf_bad": 0, "crsf_other": 0}
@@ -262,12 +274,34 @@ class SimulatorSource(Source):
         try:
             with self._lock:
                 if verb == "HOME" and len(parts) == 4:
-                    self.cfg.update(home=True, hlat=float(parts[1]), hlon=float(parts[2]), halt=float(parts[3]))
+                    self.cfg.update(home=True, hlat=float(parts[1]), hlon=float(parts[2]), halt=float(parts[3]), home_src=1)
+                elif verb == "HOME" and len(parts) == 2 and parts[1].upper() == "GPS":
+                    lat, lon = self.center
+                    self.cfg.update(home=True, hlat=lat, hlon=lon, halt=75.0, home_src=3)
+                elif verb == "CAL" and len(parts) == 3 and parts[1].upper() == "MAG":
+                    sub = parts[2].upper()
+                    if sub == "START":
+                        self.cal_started = self._sim_time()
+                    elif sub == "STOP":
+                        if self.cal_started is None:
+                            ev({"e": "err", "msg": "no calibration running (CAL MAG START)"})
+                            return
+                        done = self._sim_time() - self.cal_started >= 8
+                        self.cal_started = None
+                        if not done:
+                            ev({"e": "err", "msg": "incomplete turn: rotate the tracker a full 360 deg, flat"})
+                            return
+                        self.cfg["magcal"] = True
+                    elif sub == "CLEAR":
+                        self.cfg["magcal"] = False
+                    else:
+                        ev({"e": "err", "msg": "usage: CAL MAG START|STOP|CLEAR"})
+                        return
                 elif verb == "HOME" and len(parts) == 2 and parts[1].upper() == "DRONE":
                     d = self._drone or self.drone_at(self._sim_time())
-                    self.cfg.update(home=True, hlat=d["lat"], hlon=d["lon"], halt=float(round(d["alt"])))
+                    self.cfg.update(home=True, hlat=d["lat"], hlon=d["lon"], halt=float(round(d["alt"])), home_src=2)
                 elif verb == "HOME" and len(parts) == 2 and parts[1].upper() == "CLEAR":
-                    self.cfg["home"] = False
+                    self.cfg.update(home=False, home_src=0)
                 elif verb == "MODE" and len(parts) == 2:
                     self.mode = parts[1].lower()
                 elif verb == "AIM" and len(parts) == 3:
@@ -275,7 +309,7 @@ class SimulatorSource(Source):
                     self.manual = (float(parts[1]), float(parts[2]))
                 elif verb == "SET" and len(parts) == 3:
                     key = parts[1].lower()
-                    if key not in self.cfg or key in ("uid", "home", "hlat", "hlon", "halt"):
+                    if key not in self.cfg or key in ("uid", "home", "hlat", "hlon", "halt", "home_src", "magcal"):
                         ev({"e": "err", "msg": "unknown key '%s'" % key[:20]})
                         return
                     self.cfg[key] = float(parts[2])
@@ -293,6 +327,8 @@ class SimulatorSource(Source):
         name = verb
         if verb in ("HOME", "MODE") and len(parts) == 2:
             name = "%s %s" % (verb, parts[1].upper())
+        if verb == "CAL":
+            name = " ".join(p.upper() for p in parts)
         ev({"e": "ack", "cmd": name})
 
     # -- event generation -------------------------------------------------------------------------
@@ -311,6 +347,48 @@ class SimulatorSource(Source):
     def _emit_stat(self) -> None:
         self.state.ingest(dict(e="stat", **self.counters, dropped=0))
 
+    def _emit_sensors(self, t: float) -> None:
+        cfg = self.cfg
+        cal_running = self.cal_started is not None
+        noise = 0.6 * math.sin(t * 1.7)
+        heading = geo.wrap360(self.base_heading + noise)
+        self.state.ingest(
+            {
+                "e": "sens",
+                "imu": "MPU6050",
+                "mag": "HMC5883L",
+                "baro": "BMP180",
+                "hdg": round(geo.wrap360(heading + cfg["declination"]), 1),
+                "hdg_mag": round(heading, 1),
+                "tilt": round(1.2 + 0.1 * math.sin(t), 1),
+                "cal": "running" if cal_running else ("ok" if cfg["magcal"] else "none"),
+                "cal_cov": int(min(100, (t - self.cal_started) * 12.5)) if cal_running else 0,
+                "hpa": round(1012.6 + 0.05 * math.sin(t / 30), 2),
+                "temp": 11.8,
+                "north": bool(cfg["auto_north"] and cfg["magcal"] and not cal_running),
+            }
+        )
+        lat, lon = self.center
+        self.state.ingest(
+            {
+                "e": "tgps",
+                "fix": t > 2,
+                "q": 1 if t > 2 else 0,
+                "sats": 11 if t > 2 else 3,
+                "hdop": 0.8 if t > 2 else 99.9,
+                "lat": round(lat + 2e-6 * math.sin(t / 7), 7),
+                "lon": round(lon + 2e-6 * math.cos(t / 9), 7),
+                "alt": round(75.0 + 0.8 * math.sin(t / 5), 1),
+                "baud": 38400,
+                "ahome": "locked" if cfg["home_src"] == 3 else "waiting",
+                "ahome_pct": 100 if cfg["home_src"] == 3 else 0,
+                "good": int(t * 5),
+                "bad": 0,
+            }
+        )
+        if cfg["auto_north"] and cfg["magcal"] and not cal_running:
+            cfg["offset"] = round(geo.wrap360(geo.wrap360(heading + cfg["declination"]) + cfg["compass_mount"]), 1)
+
     def _emit_trk(self, d: Dict[str, float]) -> None:
         cfg = self.cfg
         trk: Dict[str, Any] = {
@@ -325,6 +403,9 @@ class SimulatorSource(Source):
             "el": None,
             "dist": None,
             "dist3d": None,
+            "hsrc": {0: "none", 1: "manual", 2: "drone", 3: "gps"}.get(cfg["home_src"], "none"),
+            "altsrc": "baro" if cfg["alt_src"] else "gps",
+            "offset": cfg["offset"],
         }
         pan, tilt, flipped = 90.0, 0.0, False
         if cfg["home"] and d:
@@ -419,6 +500,8 @@ class SimulatorSource(Source):
                 else:
                     m = "ACRO" if int(t // 30) % 2 == 0 else "ANGL"
                 ev({"e": "mode", "m": m})
+            if step % 10 == 5:
+                self._emit_sensors(t)
             if step % 50 == 0:
                 self._emit_stat()
             if step % 100 == 0:

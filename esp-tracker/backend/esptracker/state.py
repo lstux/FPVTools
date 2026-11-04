@@ -24,6 +24,8 @@ EVENT_KEYS = {
     "stat": "stat",
     "hello": "hello",
     "cfg": "cfg",
+    "tgps": "tgps",  # GPS module on the tracker
+    "sens": "sens",  # compass / accelerometer / barometer on the tracker
 }
 
 # Flight mode strings the FCs send while disarmed: Betaflight appends '*', iNav says OK/WAIT/!ERR.

@@ -16,12 +16,12 @@ int finish(int n, size_t cap)
     return n;
 }
 
+} // namespace
+
 void uid_hex(const uint8_t uid[6], char out[13])
 {
     snprintf(out, 13, "%02x%02x%02x%02x%02x%02x", uid[0], uid[1], uid[2], uid[3], uid[4], uid[5]);
 }
-
-} // namespace
 
 size_t json_escape(const char *in, char *out, size_t cap)
 {
@@ -111,17 +111,66 @@ int json_flight_mode(char *buf, size_t cap, uint32_t ms, const char *mode)
     return finish(snprintf(buf, cap, "{\"e\":\"mode\",\"ms\":%lu,\"m\":\"%s\"}", (unsigned long)ms, esc), cap);
 }
 
+const char *home_src_name(uint8_t src)
+{
+    switch (src) {
+    case HOME_SRC_MANUAL: return "manual";
+    case HOME_SRC_DRONE: return "drone";
+    case HOME_SRC_GPS: return "gps";
+    default: return "none";
+    }
+}
+
+int json_tracker_gps(char *buf, size_t cap, uint32_t ms, const NmeaFix &f, uint32_t baud, const AutoHome &ah,
+                     uint32_t nmea_good, uint32_t nmea_bad)
+{
+    static const char *const AH[] = {"waiting", "averaging", "locked"};
+    return finish(snprintf(buf, cap,
+                           "{\"e\":\"tgps\",\"ms\":%lu,\"fix\":%s,\"q\":%u,\"sats\":%u,\"hdop\":%.1f,\"lat\":%.7f,"
+                           "\"lon\":%.7f,\"alt\":%.1f,\"baud\":%lu,\"ahome\":\"%s\",\"ahome_pct\":%u,\"good\":%lu,\"bad\":%lu}",
+                           (unsigned long)ms, f.valid ? "true" : "false", (unsigned)f.quality, (unsigned)f.sats,
+                           (double)f.hdop, f.lat, f.lon, (double)f.alt_m, (unsigned long)baud, AH[ah.state()],
+                           (unsigned)ah.progress(), (unsigned long)nmea_good, (unsigned long)nmea_bad),
+                  cap);
+}
+
+static void opt_num(char *out, size_t cap, bool has, float v, const char *fmt)
+{
+    if (has) snprintf(out, cap, fmt, (double)v);
+    else snprintf(out, cap, "null");
+}
+
+int json_sensors(char *buf, size_t cap, uint32_t ms, const SensorReport &r)
+{
+    char hm[16], ht[16], tilt[16], pr[16], tc[16];
+    opt_num(hm, sizeof(hm), r.has_heading, r.heading_mag, "%.1f");
+    opt_num(ht, sizeof(ht), r.has_heading, r.heading_true, "%.1f");
+    opt_num(tilt, sizeof(tilt), r.has_tilt, r.tilt_deg, "%.1f");
+    opt_num(pr, sizeof(pr), r.has_press, r.press_pa / 100.0f, "%.2f");
+    opt_num(tc, sizeof(tc), r.has_press, r.temp_c, "%.1f");
+    static const char *const CAL[] = {"none", "ok", "running"};
+    return finish(snprintf(buf, cap,
+                           "{\"e\":\"sens\",\"ms\":%lu,\"imu\":\"%s\",\"mag\":\"%s\",\"baro\":\"%s\",\"hdg\":%s,"
+                           "\"hdg_mag\":%s,\"tilt\":%s,\"cal\":\"%s\",\"cal_cov\":%u,\"hpa\":%s,\"temp\":%s,\"north\":%s}",
+                           (unsigned long)ms, r.imu ? r.imu : "", r.mag ? r.mag : "", r.baro ? r.baro : "", ht, hm,
+                           tilt, CAL[r.cal > 2 ? 0 : r.cal], (unsigned)r.cal_cov, pr, tc,
+                           r.north_applied ? "true" : "false"),
+                  cap);
+}
+
 int json_tracker(char *buf, size_t cap, uint32_t ms, const Tracker &t)
 {
     const TrackerConfig &c = t.cfg;
     const bool geo = t.geoValid();
     int n = snprintf(buf, cap,
                      "{\"e\":\"trk\",\"ms\":%lu,\"mode\":\"%s\",\"home\":%s,\"hlat\":%.7f,\"hlon\":%.7f,\"halt\":%.1f,"
-                     "\"tracking\":%s,\"pan\":%.1f,\"tilt\":%.1f,\"tpan\":%.1f,\"ttilt\":%.1f,\"flip\":%s,\"gps_age\":%ld",
+                     "\"tracking\":%s,\"pan\":%.1f,\"tilt\":%.1f,\"tpan\":%.1f,\"ttilt\":%.1f,\"flip\":%s,\"gps_age\":%ld,"
+                     "\"hsrc\":\"%s\",\"altsrc\":\"%s\",\"offset\":%.1f",
                      (unsigned long)ms, t.mode() == Tracker::AUTO ? "auto" : "manual", c.home_valid ? "true" : "false",
                      c.home_lat, c.home_lon, (double)c.home_alt, t.tracking(ms) ? "true" : "false", (double)t.pan(),
                      (double)t.tilt(), (double)t.targetPan(), (double)t.targetTilt(), t.flipped() ? "true" : "false",
-                     t.hasGps() ? (long)t.gpsAgeMs(ms) : -1L);
+                     t.hasGps() ? (long)t.gpsAgeMs(ms) : -1L, home_src_name(c.home_src), t.usedBaro() ? "baro" : "gps",
+                     (double)c.offset_deg);
     if (n < 0 || (size_t)n >= cap) return finish(n, cap);
     if (geo) {
         int m = snprintf(buf + n, cap - n, ",\"az\":%.1f,\"el\":%.1f,\"dist\":%.1f,\"dist3d\":%.1f}", t.azimuth(),
@@ -151,12 +200,16 @@ int json_config(char *buf, size_t cap, const TrackerConfig &c)
                            "{\"e\":\"cfg\",\"uid\":%s%s%s,\"home\":%s,\"hlat\":%.7f,\"hlon\":%.7f,\"halt\":%.1f,"
                            "\"offset\":%.1f,\"hyst\":%.1f,\"slew\":%.0f,\"pan_min_us\":%u,\"pan_max_us\":%u,"
                            "\"tilt_min_us\":%u,\"tilt_max_us\":%u,\"pan_invert\":%u,\"tilt_invert\":%u,"
-                           "\"min_sats\":%u,\"lost_ms\":%u}",
+                           "\"min_sats\":%u,\"lost_ms\":%u,\"home_src\":%u,\"alt_src\":%u,\"auto_home\":%u,"
+                           "\"auto_north\":%u,\"compass_mount\":%.1f,\"declination\":%.1f,\"gps_baud\":%lu,"
+                           "\"magcal\":%s}",
                            c.has_uid ? "\"" : "null", uid, c.has_uid ? "\"" : "", c.home_valid ? "true" : "false",
                            c.home_lat, c.home_lon, (double)c.home_alt, (double)c.offset_deg, (double)c.hyst_deg,
                            (double)c.slew_dps, (unsigned)c.pan_min_us, (unsigned)c.pan_max_us, (unsigned)c.tilt_min_us,
                            (unsigned)c.tilt_max_us, (unsigned)c.pan_invert, (unsigned)c.tilt_invert, (unsigned)c.min_sats,
-                           (unsigned)c.lost_ms),
+                           (unsigned)c.lost_ms, (unsigned)c.home_src, (unsigned)c.alt_src, (unsigned)c.auto_home,
+                           (unsigned)c.auto_north, (double)c.compass_mount, (double)c.declination,
+                           (unsigned long)c.gps_baud, c.magcal.valid ? "true" : "false"),
                   cap);
 }
 
@@ -176,7 +229,8 @@ int json_help(char *buf, size_t cap)
 {
     return finish(snprintf(buf, cap,
                            "{\"e\":\"help\",\"text\":\"PING | STATUS | BIND <phrase> | UID <hex12|d,d,d,d,d,d> | "
-                           "HOME <lat> <lon> <alt> | HOME DRONE | HOME CLEAR | MODE AUTO|MANUAL | AIM <pan> <tilt> | "
+                           "HOME <lat> <lon> <alt> | HOME DRONE | HOME GPS | HOME CLEAR | MODE AUTO|MANUAL | AIM <pan> <tilt> | "
+                           "CAL MAG START|STOP|CLEAR | "
                            "SET <key> <value> | SAVE | FACTORY | REBOOT. Keys: %s\"}",
                            cfg_keys()),
                   cap);
@@ -238,6 +292,10 @@ const char *cmd_name(CmdType t)
     case CMD_HOME_SET: return "HOME";
     case CMD_HOME_DRONE: return "HOME DRONE";
     case CMD_HOME_CLEAR: return "HOME CLEAR";
+    case CMD_HOME_GPS: return "HOME GPS";
+    case CMD_CAL_START: return "CAL MAG START";
+    case CMD_CAL_STOP: return "CAL MAG STOP";
+    case CMD_CAL_CLEAR: return "CAL MAG CLEAR";
     case CMD_MODE_AUTO: return "MODE AUTO";
     case CMD_MODE_MANUAL: return "MODE MANUAL";
     case CMD_AIM: return "AIM";
@@ -311,6 +369,7 @@ bool cmd_parse(const char *line, Cmd *c)
     if (ieq(verb, "HOME")) {
         if (nt == 2 && ieq(tok[1], "DRONE")) { c->type = CMD_HOME_DRONE; return true; }
         if (nt == 2 && ieq(tok[1], "CLEAR")) { c->type = CMD_HOME_CLEAR; return true; }
+        if (nt == 2 && ieq(tok[1], "GPS")) { c->type = CMD_HOME_GPS; return true; }
         if (nt == 4 && parse_double(tok[1], &c->v[0]) && parse_double(tok[2], &c->v[1]) &&
             parse_double(tok[3], &c->v[2])) {
             if (c->v[0] < -90 || c->v[0] > 90 || c->v[1] < -180 || c->v[1] > 180) return fail(c, "lat/lon out of range");
@@ -318,7 +377,16 @@ bool cmd_parse(const char *line, Cmd *c)
             c->type = CMD_HOME_SET;
             return true;
         }
-        return fail(c, "usage: HOME <lat> <lon> <alt> | DRONE | CLEAR");
+        return fail(c, "usage: HOME <lat> <lon> <alt> | DRONE | GPS | CLEAR");
+    }
+
+    if (ieq(verb, "CAL")) {
+        if (nt == 3 && ieq(tok[1], "MAG")) {
+            if (ieq(tok[2], "START")) { c->type = CMD_CAL_START; return true; }
+            if (ieq(tok[2], "STOP")) { c->type = CMD_CAL_STOP; return true; }
+            if (ieq(tok[2], "CLEAR")) { c->type = CMD_CAL_CLEAR; return true; }
+        }
+        return fail(c, "usage: CAL MAG START|STOP|CLEAR");
     }
 
     if (ieq(verb, "MODE")) {

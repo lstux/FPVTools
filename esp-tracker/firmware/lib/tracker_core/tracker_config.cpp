@@ -16,11 +16,18 @@ void cfg_default(TrackerConfig *c)
     c->tilt_max_us = 2500;
     c->min_sats = 6;
     c->lost_ms = 5000;
+    c->alt_src = 0;
+    c->auto_home = 1;
+    c->auto_north = 1;
+    c->compass_mount = 0.0f;
+    c->declination = 0.0f;
+    c->gps_baud = 0;
+    magcal_identity(&c->magcal);
 }
 
 namespace {
 
-enum Kind : uint8_t { F32, U16, U8 };
+enum Kind : uint8_t { F32, U32, U16, U8 };
 
 struct Param {
     const char *name;
@@ -43,6 +50,12 @@ const Param PARAMS[] = {
     P("tilt_invert", U8, tilt_invert, 0, 1),
     P("min_sats", U8, min_sats, 0, 30),
     P("lost_ms", U16, lost_ms, 500, 60000),
+    P("alt_src", U8, alt_src, 0, 1),
+    P("auto_home", U8, auto_home, 0, 1),
+    P("auto_north", U8, auto_north, 0, 1),
+    P("compass_mount", F32, compass_mount, -360, 360),
+    P("declination", F32, declination, -40, 40),
+    P("gps_baud", U32, gps_baud, 0, 921600),
 };
 
 } // namespace
@@ -59,6 +72,11 @@ bool cfg_set(TrackerConfig *c, const char *key, double value, char *err)
         switch (p.kind) {
         case F32: {
             float v = (float)value;
+            memcpy(base, &v, sizeof(v));
+            break;
+        }
+        case U32: {
+            uint32_t v = (uint32_t)(value + 0.5);
             memcpy(base, &v, sizeof(v));
             break;
         }
@@ -79,5 +97,6 @@ bool cfg_set(TrackerConfig *c, const char *key, double value, char *err)
 
 const char *cfg_keys()
 {
-    return "offset,hyst,slew,pan_min_us,pan_max_us,tilt_min_us,tilt_max_us,pan_invert,tilt_invert,min_sats,lost_ms";
+    return "offset,hyst,slew,pan_min_us,pan_max_us,tilt_min_us,tilt_max_us,pan_invert,tilt_invert,min_sats,lost_ms,"
+           "alt_src,auto_home,auto_north,compass_mount,declination,gps_baud";
 }

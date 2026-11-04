@@ -23,7 +23,7 @@ def firmware_lines():
 
 def test_fixture_is_real_firmware_output():
     kinds = {json.loads(l)["e"] for l in firmware_lines()}
-    assert {"hello", "gps", "bat", "link", "att", "vario", "baro", "mode", "trk", "stat", "cfg", "ack", "err", "help"} <= kinds
+    assert {"hello", "gps", "bat", "link", "att", "vario", "baro", "mode", "tgps", "sens", "trk", "stat", "cfg", "ack", "err", "help"} <= kinds
 
 
 def test_ingest_firmware_events():
@@ -45,6 +45,11 @@ def test_ingest_firmware_events():
     # the last baro sample has no vertical speed: the snapshot keeps exactly what was sent
     assert snap["baro"]["alt"] == pytest.approx(-2.0) and "vs" not in snap["baro"]
     assert snap["flight"]["armed"] is False and snap["flight"]["time_s"] == 0
+    assert snap["tgps"]["fix"] is True and snap["tgps"]["ahome"] == "locked" and snap["tgps"]["baud"] == 38400
+    # the last "sens" sample is the board without any sensor
+    assert snap["sens"]["mag"] == "" and snap["sens"]["hdg"] is None and snap["sens"]["cal"] == "none"
+    assert snap["cfg"]["auto_north"] == 1 and snap["cfg"]["magcal"] is False
+    assert snap["trk"]["hsrc"] == "none" and snap["trk"]["altsrc"] == "gps"
     assert snap["hello"]["uid"] == "3b933b37b1e4" and snap["hello"]["espnow"] is True
     assert snap["cfg"]["offset"] == 0 and snap["cfg"]["min_sats"] == 6
     assert snap["stat"]["espnow"] == 120

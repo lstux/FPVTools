@@ -26,11 +26,17 @@ golden: build/dump_events
 
 # Catches typos / type errors in the hardware glue. It is NOT a substitute for a real
 # PlatformIO build: the stubs only mimic the subset of the Arduino-ESP32 API that main.cpp uses.
+GLUE := ../src/main.cpp ../src/sensors.cpp ../src/display.cpp
+SYN  := $(CXX) -std=gnu++11 -fsyntax-only -Wall -Wextra -Werror -Istubs -I$(CORE) -I../include
 syntax:
-	$(CXX) -std=gnu++11 -fsyntax-only -Wall -Wextra -Istubs -I$(CORE) -I../include \
-	  -DARDUINO_USB_CDC_ON_BOOT=1 -DPIN_PAN=4 -DPIN_TILT=5 ../src/main.cpp
-	$(CXX) -std=gnu++11 -fsyntax-only -Wall -Wextra -Istubs -I$(CORE) -I../include \
-	  -DPIN_PAN=25 -DPIN_TILT=26 -DPIN_LED=2 ../src/main.cpp
+	# C3-like: USB-CDC, no sensors, no screen
+	for f in $(GLUE); do $(SYN) -DARDUINO_USB_CDC_ON_BOOT=1 -DPIN_PAN=4 -DPIN_TILT=5 $$f || exit 1; done
+	# classic ESP32 with LED, I2C sensors and GPS
+	for f in $(GLUE); do $(SYN) -DPIN_PAN=25 -DPIN_TILT=26 -DPIN_LED=2 -DPIN_SDA=21 -DPIN_SCL=22 -DPIN_GPS_RX=16 -DPIN_GPS_TX=17 $$f || exit 1; done
+	# TTGO TS: everything
+	for f in $(GLUE); do $(SYN) -DPIN_PAN=26 -DPIN_TILT=33 -DPIN_SDA=21 -DPIN_SCL=22 -DPIN_GPS_RX=32 -DPIN_GPS_TX=-1 \
+	  -DHAS_TFT=1 -DPIN_TFT_CS=16 -DPIN_TFT_DC=17 -DPIN_TFT_MOSI=23 -DPIN_TFT_SCLK=5 -DPIN_TFT_RST=-1 -DPIN_TFT_BL=27 \
+	  -DPIN_BTN1=34 -DPIN_BTN2=35 -DPIN_BTN3=39 $$f || exit 1; done
 
 clean:
 	rm -rf build

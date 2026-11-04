@@ -9,6 +9,11 @@
 #define HIGH 1
 #define LOW 0
 #define OUTPUT 1
+#define INPUT 0
+#define INPUT_PULLUP 2
+#define SERIAL_8N1 0x800001c
+
+int digitalRead(uint8_t pin);
 
 unsigned long millis();
 void delay(uint32_t ms);
@@ -25,6 +30,15 @@ struct HWSerialStub {
     void setTxTimeoutMs(uint32_t ms);
 };
 extern HWSerialStub Serial;
+
+class HardwareSerial {
+public:
+    explicit HardwareSerial(int uart);
+    void begin(unsigned long baud, uint32_t config, int8_t rx, int8_t tx);
+    void end();
+    int available();
+    int read();
+};
 
 struct EspStub {
     void restart();
