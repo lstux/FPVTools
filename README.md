@@ -33,3 +33,10 @@ Check fpvtools.sh usage with :
  * jesc : jesc-configurator, flash/configure JESC ESCs
  * gyroflow : video stabilisation with gyro logs
  
+
+# ESP-NOW antenna tracker / ground station
+
+[`esp-tracker/`](esp-tracker) is not an installable configurator but a small project of its own: an ESP32 receives
+the ExpressLRS Backpack telemetry (GPS included), drives a pan/tilt antenna tracker, and a Python web application shows
+the drone live on a map. See [`esp-tracker/README.md`](esp-tracker/README.md) and
+[`esp-tracker/docs/usage.md`](esp-tracker/docs/usage.md).

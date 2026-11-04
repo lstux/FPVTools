@@ -1,0 +1,13 @@
+{"e":"hello","fw":"0.1.0","chip":"ESP32-C3","uid":"3b933b37b1e4","espnow":true}
+{"e":"gps","ms":1000,"lat":48.1234567,"lon":-1.6543210,"alt":120,"gs":45.3,"hdg":182.3,"sats":12}
+{"e":"bat","ms":1010,"v":16.4,"a":12.5,"mah":432,"pct":70}
+{"e":"link","ms":1020,"rssi1":-60,"rssi2":-62,"lq":99,"snr":-3,"ant":1,"rfmode":6,"txpwr":100,"drssi":-70,"dlq":98,"dsnr":8}
+{"e":"att","ms":1030,"pitch":30.0,"roll":-10.0,"yaw":180.0}
+{"e":"mode","ms":1040,"m":"ACRO*"}
+{"e":"trk","ms":2500,"mode":"auto","home":true,"hlat":48.1230000,"hlon":-1.6540000,"halt":100.0,"tracking":true,"pan":154.9,"tilt":160.4,"tpan":154.9,"ttilt":160.4,"flip":true,"gps_age":1500,"az":334.9,"el":19.6,"dist":56.1,"dist3d":59.6}
+{"e":"trk","ms":500,"mode":"auto","home":false,"hlat":0.0000000,"hlon":0.0000000,"halt":0.0,"tracking":false,"pan":90.0,"tilt":0.0,"tpan":90.0,"ttilt":0.0,"flip":false,"gps_age":-1,"az":null,"el":null,"dist":null,"dist3d":null}
+{"e":"stat","ms":3000,"espnow":120,"msp_ok":118,"msp_bad":2,"crsf_ok":118,"crsf_bad":0,"crsf_other":40,"dropped":0}
+{"e":"cfg","uid":"3b933b37b1e4","home":true,"hlat":48.1230000,"hlon":-1.6540000,"halt":100.0,"offset":0.0,"hyst":3.0,"slew":120,"pan_min_us":500,"pan_max_us":2500,"tilt_min_us":500,"tilt_max_us":2500,"pan_invert":0,"tilt_invert":0,"min_sats":6,"lost_ms":5000}
+{"e":"ack","cmd":"SAVE"}
+{"e":"err","msg":"unknown key 'x\"y'"}
+{"e":"help","text":"PING | STATUS | BIND <phrase> | UID <hex12|d,d,d,d,d,d> | HOME <lat> <lon> <alt> | HOME DRONE | HOME CLEAR | MODE AUTO|MANUAL | AIM <pan> <tilt> | SET <key> <value> | SAVE | FACTORY | REBOOT. Keys: offset,hyst,slew,pan_min_us,pan_max_us,tilt_min_us,tilt_max_us,pan_invert,tilt_invert,min_sats,lost_ms"}

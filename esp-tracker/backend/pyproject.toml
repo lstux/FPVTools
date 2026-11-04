@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "esptracker"
+version = "0.1.0"
+description = "Ground station for the ESP-NOW ELRS antenna tracker: live map, telemetry and tracker control"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "websockets>=12",
+    "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7", "httpx>=0.27"]
+
+[project.scripts]
+esptracker = "esptracker.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["esptracker*"]
+
+[tool.setuptools.package-data]
+esptracker = ["static/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ESP Tracker</title>
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>ESP Tracker</h1>
+  <span id="pill-conn" class="pill bad" title="USB link to the tracker">no tracker</span>
+  <span id="pill-rf" class="pill" title="Radio link quality (from the drone)">LQ –</span>
+  <span id="pill-mode" class="pill" title="Flight mode">–</span>
+  <span id="pill-sats" class="pill" title="GPS satellites">GPS –</span>
+  <span class="spacer"></span>
+  <span id="pill-src" class="muted"></span>
+</header>
+
+<main>
+  <section id="mapwrap">
+    <div id="map"></div>
+    <div id="maptools">
+      <button id="btn-follow" class="on" title="Keep the drone centred">Follow</button>
+      <button id="btn-centerhome" title="Centre the map on the tracker">Home</button>
+      <button id="btn-fit" title="Fit the whole trail">Fit</button>
+      <button id="btn-clear" title="Erase the trail and flight statistics">Clear trail</button>
+      <a id="btn-gpx" class="button" href="/api/track.gpx" download="flight.gpx" title="Download the trail as GPX">GPX</a>
+    </div>
+    <div id="maphint" class="hidden">Click on the map to place the tracker</div>
+  </section>
+
+  <aside>
+    <div class="card" id="card-pos">
+      <h2>Drone position <small id="gps-age"></small></h2>
+      <dl>
+        <dt>Latitude</dt><dd id="v-lat">–</dd>
+        <dt>Longitude</dt><dd id="v-lon">–</dd>
+        <dt>Altitude</dt><dd id="v-alt">–</dd>
+        <dt>Speed</dt><dd id="v-gs">–</dd>
+        <dt>Heading</dt><dd id="v-hdg">–</dd>
+        <dt>Satellites</dt><dd id="v-sats">–</dd>
+      </dl>
+    </div>
+
+    <div class="card" id="card-geo">
+      <h2>From the tracker</h2>
+      <dl>
+        <dt>Distance</dt><dd id="v-dist">–</dd>
+        <dt>3D distance</dt><dd id="v-dist3d">–</dd>
+        <dt>Azimuth</dt><dd id="v-az">–</dd>
+        <dt>Elevation</dt><dd id="v-el">–</dd>
+        <dt>Height above home</dt><dd id="v-rel">–</dd>
+      </dl>
+    </div>
+
+    <div class="card" id="card-rf">
+      <h2>Radio link <small id="rf-age"></small></h2>
+      <dl>
+        <dt>Link quality</dt><dd id="v-lq">–</dd>
+        <dt>RSSI 1 / 2</dt><dd id="v-rssi">–</dd>
+        <dt>SNR</dt><dd id="v-snr">–</dd>
+        <dt>TX power</dt><dd id="v-txpwr">–</dd>
+        <dt>Antenna / rate idx</dt><dd id="v-ant">–</dd>
+        <dt>Downlink</dt><dd id="v-dn">–</dd>
+      </dl>
+    </div>
+
+    <div class="card" id="card-bat">
+      <h2>Battery <small id="bat-age"></small></h2>
+      <dl>
+        <dt>Voltage</dt><dd id="v-bv">–</dd>
+        <dt>Current</dt><dd id="v-ba">–</dd>
+        <dt>Used</dt><dd id="v-bmah">–</dd>
+        <dt>Remaining</dt><dd id="v-bpct">–</dd>
+      </dl>
+    </div>
+
+    <div class="card" id="card-att">
+      <h2>Attitude <small id="att-age"></small></h2>
+      <div class="att">
+        <canvas id="horizon" width="120" height="120"></canvas>
+        <dl>
+          <dt>Pitch</dt><dd id="v-pitch">–</dd>
+          <dt>Roll</dt><dd id="v-roll">–</dd>
+          <dt>Yaw</dt><dd id="v-yaw">–</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="card" id="card-trk">
+      <h2>Tracker <small id="trk-age"></small></h2>
+      <dl>
+        <dt>Mode</dt><dd id="v-tmode">–</dd>
+        <dt>Status</dt><dd id="v-tstat">–</dd>
+        <dt>Pan</dt><dd><span id="v-pan">–</span> <meter id="m-pan" min="0" max="180" value="0"></meter></dd>
+        <dt>Tilt</dt><dd><span id="v-tilt">–</span> <meter id="m-tilt" min="0" max="180" value="0"></meter></dd>
+        <dt>Home</dt><dd id="v-home">not set</dd>
+      </dl>
+
+      <div class="row">
+        <button id="btn-home-drone" title="Use the drone's current position (drone next to the tracker, 6+ satellites)">Home = drone</button>
+        <button id="btn-home-geo" title="Use this device's GPS (needs https or localhost)">Home = this device</button>
+        <button id="btn-home-map" title="Then click on the map">Home = map click</button>
+        <button id="btn-home-clear">Clear home</button>
+      </div>
+      <div class="row">
+        <label>Home alt (m)
+          <input id="in-halt" type="number" step="1" placeholder="from drone" title="Altitude above sea level of the tracker, used by 'this device' and 'map click'">
+        </label>
+        <button id="btn-halt-drone" title="Copy the drone's current altitude">use drone alt</button>
+      </div>
+      <div class="row">
+        <label>Pan zero azimuth (°)
+          <input id="in-offset" type="number" min="0" max="360" step="1" placeholder="0">
+        </label>
+        <button id="btn-offset">Apply</button>
+      </div>
+      <div class="row">
+        <button id="btn-auto">Auto</button>
+        <button id="btn-manual">Manual</button>
+        <button id="btn-save" title="Store home, offset and limits in the tracker's flash">Save to tracker</button>
+      </div>
+      <div class="row sliders" id="manual-sliders">
+        <label>Pan <input id="sl-pan" type="range" min="0" max="180" step="1" value="90"></label>
+        <label>Tilt <input id="sl-tilt" type="range" min="0" max="180" step="1" value="0"></label>
+      </div>
+    </div>
+
+    <div class="card" id="card-flight">
+      <h2>Flight</h2>
+      <dl>
+        <dt>Max distance</dt><dd id="v-fdist">–</dd>
+        <dt>Max height</dt><dd id="v-falt">–</dd>
+        <dt>Max speed</dt><dd id="v-fspd">–</dd>
+        <dt>Distance flown</dt><dd id="v-fpath">–</dd>
+      </dl>
+    </div>
+
+    <div class="card" id="card-dev">
+      <h2>Tracker device</h2>
+      <dl>
+        <dt>Firmware</dt><dd id="v-fw">–</dd>
+        <dt>ESP-NOW</dt><dd id="v-espnow">–</dd>
+        <dt>Bound UID</dt><dd id="v-uid">–</dd>
+        <dt>Packets</dt><dd id="v-pk">–</dd>
+        <dt>Errors</dt><dd id="v-err">–</dd>
+      </dl>
+    </div>
+
+    <div class="card" id="card-console">
+      <h2>Console</h2>
+      <pre id="console"></pre>
+      <form id="cmdform" autocomplete="off">
+        <input id="cmdline" placeholder="HELP, STATUS, SET offset 90, BIND my phrase …" spellcheck="false">
+        <button>Send</button>
+      </form>
+    </div>
+  </aside>
+</main>
+
+<script src="/static/vendor/leaflet/leaflet.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
