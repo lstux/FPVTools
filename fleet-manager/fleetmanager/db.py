@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .esc import summary as esc_summary
+
 SCHEMA = """
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS drone (
@@ -55,6 +57,7 @@ CREATE INDEX IF NOT EXISTS snapshot_drone ON snapshot(drone_id, id);
 # Created for every new drone, to be filled in by hand.
 BASE_COMPONENTS = [
     "motor",
+    "esc",
     "propeller",
     "camera",
     "vtx",
@@ -117,6 +120,8 @@ def hints_from_info(info: Dict[str, Any]) -> Dict[str, str]:
     if settings.get("motor_poles"):
         motor.append("%s poles" % settings["motor_poles"])
     hints["motor"] = ", ".join(motor)
+    if info.get("escs"):
+        hints["esc"] = esc_summary(info["escs"])
     return hints
 
 

@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from fakefc import DIFF_ALL, FakeFC
+from fakefc import DIFF_ALL, FakeFC, bluejay_esc
 from fleetmanager.db import Fleet
 from fleetmanager.detect import DetectError, detect
 from fleetmanager.server import create_app
@@ -14,10 +14,10 @@ def env(tmp_path):
     fleet = Fleet(tmp_path / "fleet.db")
     state = {"diff": DIFF_ALL, "error": None}
 
-    def scanner(port, cli):
+    def scanner(port, cli, esc):
         if state["error"]:
             raise state["error"]
-        return detect(FakeFC(diff=state["diff"]), with_cli=cli, timeout=0.2, cli_timeout=1)
+        return detect(FakeFC(diff=state["diff"], escs=[bluejay_esc()]), with_cli=cli, with_esc=esc, timeout=0.2, cli_timeout=1)
 
     client = TestClient(create_app(fleet, tmp_path / "photos", scanner))
     yield client, state, tmp_path
@@ -108,3 +108,12 @@ def test_index_and_static(env):
     assert "Fleet manager" in client.get("/").text
     assert client.get("/static/app.js").status_code == 200
     assert client.get("/api/snapshots/999").status_code == 404
+
+
+def test_scan_can_read_the_escs(env):
+    client, _, _ = env
+    r = client.post("/api/scan", json={"port": "auto", "esc": True})
+    d = client.get("/api/drones/%d" % r.json()["drone_id"]).json()
+    esc = next(c for c in d["components"] if c["type"] == "esc")
+    assert esc["hint"] == "1x Bluejay 0.21 (EFM8BB21x)"
+    assert d["detected"]["escs"][0]["firmware"] == "Bluejay"

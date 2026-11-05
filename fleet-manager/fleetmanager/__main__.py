@@ -41,6 +41,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     common(c)
     c.add_argument("--port", default="auto", help="serial port, e.g. /dev/ttyACM0 (default: auto)")
     c.add_argument("--no-cli", action="store_true", help="MSP only: no config snapshot, no FC reboot")
+    c.add_argument(
+        "--esc",
+        action="store_true",
+        help="also read the ESCs (battery connected, PROPELLERS OFF): firmware, version, MCU",
+    )
 
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -60,13 +65,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     from .detect import DetectError, scan_port
 
     try:
-        det = scan_port(args.port, with_cli=not args.no_cli)
+        det = scan_port(args.port, with_cli=not args.no_cli, with_esc=args.esc)
     except DetectError as e:
         print("error: %s" % e, file=sys.stderr)
         return 1
     res = fleet.register(det.info, det.diff_text, det.status_text)
     i = det.info
     print("%s %s on %s (%s)" % (i["firmware"], i["version"], i.get("board_id", "?"), i.get("craft_name", "")))
+    from .esc import describe
+
+    for e in i.get("escs", []):
+        print(describe(e))
     for w in i.get("warnings", []):
         print("warning: " + w, file=sys.stderr)
     print(

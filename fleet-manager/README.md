@@ -18,6 +18,7 @@ pip install -e '.[test]'
 fleetmanager serve                # web interface on http://127.0.0.1:8090
 fleetmanager scan                 # same detection from the terminal, no browser
 fleetmanager scan --no-cli        # MSP only: no config snapshot and no FC reboot
+fleetmanager scan --esc           # also read the ESCs: battery connected, PROPELLERS OFF
 ```
 
 Run `../udevrules.sh` once (or join the `dialout` group) to get access to the USB serial port. Close
@@ -34,12 +35,26 @@ The catalogue lives in `~/.local/share/fpvtools/fleet-manager/` (`fleet.db` + `p
 | CLI `status` | gyro / accelerometer / barometer / magnetometer chip names |
 | CLI `get …` | receiver protocol (`serialrx_provider`), motor protocol and poles, GPS provider, optical flow / rangefinder hardware, blackbox device |
 | CLI `diff all` | the whole non-default configuration, saved as a snapshot |
+| ESC 4-way interface (opt-in) | per ESC: firmware (Bluejay, BLHeli_S, AM32), version, MCU, layout, name |
 
 The FC unique id recognises a drone when you plug it again: automatic fields are refreshed, **what you typed is
 never overwritten**. Automatic values appear in green next to the matching component ("seen by the FC").
 
 Not readable from the FC, to type in by hand: ELRS version (read it from the radio's Lua script), GPS module
-model, motor/prop/camera/antenna models, ESC firmware (planned, via the 4-way interface).
+model, motor/prop/camera/antenna models.
+
+## Reading the ESCs
+
+Tick "read ESCs" (or `--esc`). The FC switches its motor outputs to the BLHeli 4-way interface, the app reads each
+ESC's bootloader and EEPROM (read commands only), tells each ESC to run its firmware again and leaves the interface.
+The ESC lines are also part of the saved snapshot text, so flashing an ESC creates a new snapshot.
+
+* **The ESCs are powered by the battery, not by USB.** Connect it, and **take the propellers off**.
+* Recognised: BLHeli_S and Bluejay (SiLabs EFM8BB10/BB21/BB51), AM32 (STM32F051 and the ARM64K signature).
+  BLHeli_32 is proprietary: it shows up as "not AM32", without a version. Other MCUs are listed with their raw signature.
+* Protocol and memory layouts come from the Betaflight source (`serial_4way.c`) and esc-configurator
+  (`FourWay.js`, `sources/*/eeprom.js`); the version is shown as `MAIN.SUB` revision (Bluejay `0.21`, BLHeli_S `16.7`).
+  INAV uses the same MSP command, but its side was not checked against its source.
 
 ## Warning: the FC reboots
 
@@ -61,4 +76,4 @@ Tests: `pytest` (no hardware needed).
 
 ## Roadmap
 
-ESC firmware/version through the 4-way passthrough (BLHeli_32, AM32, Bluejay); ArduPilot (MAVLink).
+ArduPilot (MAVLink); BLHeli_32 identification if a reliable marker turns up.

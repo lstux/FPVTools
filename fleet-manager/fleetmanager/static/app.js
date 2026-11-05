@@ -161,6 +161,7 @@ function detectedRows(det) {
   add("Build", [det.build_date, det.build_time, det.git_revision].filter(Boolean).join(" "));
   add("Craft name", det.craft_name);
   add("FC unique id", det.uid);
+  for (const e of det.escs || []) add(`ESC ${e.index}`, e.error ? `not read (${e.error})` : [e.firmware, e.version, e.mcu && `on ${e.mcu}`, e.name && `· ${e.name}`].filter(Boolean).join(" "));
   for (const [k, v] of Object.entries(det.sensors || {})) add(`Sensor ${k}`, v);
   for (const [k, v] of Object.entries(det.settings || {})) add(k, v);
   return rows;
@@ -239,7 +240,7 @@ $("#scan-btn").addEventListener("click", async () => {
   btn.disabled = true;
   toast("Reading the flight controller… it reboots when the CLI is closed.");
   try {
-    const r = await api("/api/scan", send("POST", { port: $("#port").value, cli: $("#cli").checked }));
+    const r = await api("/api/scan", send("POST", { port: $("#port").value, cli: $("#cli").checked, esc: $("#esc").checked }));
     const msg = r.created ? "New drone: fill in its details."
       : r.changed ? "Known drone: configuration changed, new snapshot saved."
       : "Known drone: nothing changed.";

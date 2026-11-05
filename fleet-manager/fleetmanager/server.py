@@ -24,7 +24,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 MAX_PHOTO_BYTES = 10 * 1024 * 1024
 PHOTO_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 
-Scanner = Callable[[Optional[str], bool], Detection]
+Scanner = Callable[[Optional[str], bool, bool], Detection]
 
 
 class DroneIn(BaseModel):
@@ -42,6 +42,7 @@ class ComponentIn(BaseModel):
 class ScanIn(BaseModel):
     port: Optional[str] = "auto"
     cli: bool = True
+    esc: bool = False
 
 
 def _looks_like(kind: str, data: bytes) -> bool:
@@ -82,7 +83,7 @@ def create_app(fleet: Fleet, photos_dir: Path, scanner: Scanner = scan_port) -> 
         if not scan_lock.acquire(blocking=False):
             raise HTTPException(409, "a detection is already running")
         try:
-            det = scanner(body.port, body.cli)
+            det = scanner(body.port, body.cli, body.esc)
         except DetectError as e:
             raise HTTPException(400, str(e)) from e
         except PermissionError as e:

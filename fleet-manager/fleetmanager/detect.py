@@ -14,6 +14,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from .esc import FourWayError, describe, read_escs
 from .msp import (
     MSP_API_VERSION,
     MSP_BOARD_INFO,
@@ -96,7 +97,7 @@ def resolve_port(port: Optional[str]) -> str:
     raise DetectError("several candidate ports, pick one: " + ", ".join(c["device"] for c in cands))
 
 
-def scan_port(port: Optional[str] = "auto", with_cli: bool = True) -> Detection:
+def scan_port(port: Optional[str] = "auto", with_cli: bool = True, with_esc: bool = False) -> Detection:
     """Open the port (``auto`` = the only FC-looking one) and run :func:`detect`."""
     import serial
 
@@ -106,7 +107,7 @@ def scan_port(port: Optional[str] = "auto", with_cli: bool = True) -> Detection:
     except (serial.SerialException, OSError) as e:
         raise DetectError("cannot open %s: %s" % (dev, e)) from e
     try:
-        det = detect(ser, with_cli=with_cli)
+        det = detect(ser, with_cli=with_cli, with_esc=with_esc)
         det.info["port"] = dev
         return det
     except serial.SerialException as e:
@@ -268,14 +269,48 @@ def read_cli(ser, info: Dict[str, Any], timeout: float) -> "tuple[str, str]":
     return diff, status
 
 
-def detect(ser, with_cli: bool = True, timeout: float = 1.0, cli_timeout: float = 4.0) -> Detection:
-    """Identify the FC behind ``ser`` (a pyserial-like object)."""
+def read_esc_info(ser, info: Dict[str, Any], timeout: float) -> None:
+    """Fill ``info['escs']`` / ``info['esc_interface']`` through the 4-way interface."""
+    try:
+        res = read_escs(ser, timeout, timeout)
+    except FourWayError as e:
+        info["warnings"].append("ESCs not read: %s" % e)
+        return
+    info["escs"] = res["escs"]
+    info["esc_interface"] = res["interface"]
+    failed = [e["index"] for e in res["escs"] if e.get("error")]
+    if failed:
+        info["warnings"].append(
+            "ESC %s did not answer (battery connected? the ESCs are not powered by USB)"
+            % ", ".join(str(i) for i in failed)
+        )
+
+
+def detect(
+    ser,
+    with_cli: bool = True,
+    with_esc: bool = False,
+    timeout: float = 1.0,
+    cli_timeout: float = 4.0,
+) -> Detection:
+    """Identify the FC behind ``ser`` (a pyserial-like object).
+
+    Order matters: MSP identity, then the ESCs (4-way interface, MSP link), then the CLI, whose exit
+    reboots the FC.
+    """
     info = read_msp_info(MspClient(ser, timeout))
     info["warnings"] = []
+    if with_esc:
+        read_esc_info(ser, info, timeout)
     diff_text = status_text = None
     if with_cli:
         try:
             diff_text, status_text = read_cli(ser, info, cli_timeout)
         except CliError as e:
             info["warnings"].append("CLI not available, no configuration snapshot: %s" % e)
+        if diff_text is not None and info.get("escs"):
+            # ESC firmware is part of the saved configuration, so that a flashed ESC makes a new snapshot
+            diff_text += "\n\n# fleetmanager: ESCs (read through the 4-way interface)\n" + "\n".join(
+                "# " + describe(e) for e in info["escs"]
+            )
     return Detection(info, diff_text, status_text)

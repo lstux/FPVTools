@@ -23,6 +23,7 @@ MSP_NAME = 10
 MSP_STATUS = 101
 MSP_VTX_CONFIG = 88
 MSP_UID = 160
+MSP_SET_PASSTHROUGH = 245  # no payload = ESC 4-way interface; the FC answers with the ESC count
 
 
 class MspError(Exception):
