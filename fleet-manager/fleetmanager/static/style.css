@@ -1,0 +1,56 @@
+:root {
+  --bg: #14171c; --panel: #1d222a; --line: #2e3540; --text: #e3e7ee; --muted: #8b95a5;
+  --accent: #4ea1ff; --add: #1f4d32; --del: #5a2530; --chg: #5a4a1c; --ok: #4cc38a; --err: #ff6b6b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, sans-serif; }
+a { color: var(--accent); text-decoration: none; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
+.brand { font-weight: 700; font-size: 16px; color: var(--text); }
+.scan { display: flex; align-items: center; gap: 8px; }
+main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+input, select, textarea, button { font: inherit; color: var(--text); background: #11141a;
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+textarea { width: 100%; resize: vertical; }
+input[type=text] { width: 100%; }
+input[type=checkbox] { width: auto; }
+button { cursor: pointer; background: #262d38; }
+button:hover { border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: wait; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #07121f; font-weight: 600; }
+button.danger:hover { border-color: var(--err); color: var(--err); }
+.check { display: flex; align-items: center; gap: 4px; color: var(--muted); }
+#toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); max-width: 90vw;
+  background: var(--panel); border: 1px solid var(--accent); padding: 10px 16px; border-radius: 8px; z-index: 5; }
+#toast.error { border-color: var(--err); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; color: var(--text); display: block; }
+.card:hover { border-color: var(--accent); }
+.card .pic { height: 140px; background: #0e1015 center/cover; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.card .body { padding: 10px 12px; }
+.card h3 { margin: 0 0 4px; font-size: 15px; }
+.muted { color: var(--muted); font-size: 12px; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+section h2 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.row { display: flex; gap: 14px; flex-wrap: wrap; }
+.photo { width: 260px; }
+.photo img { width: 100%; border-radius: 8px; display: block; background: #0e1015; }
+.photo .empty { height: 160px; border: 1px dashed var(--line); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.fields { flex: 1; min-width: 260px; display: grid; gap: 8px; }
+label.f { display: grid; gap: 3px; color: var(--muted); font-size: 12px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; font-size: 12px; }
+td.hint { color: var(--ok); font-size: 12px; max-width: 200px; }
+td.type { font-weight: 600; white-space: nowrap; }
+.kv td:first-child { color: var(--muted); width: 180px; }
+.actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.warn { color: #f2c14e; }
+/* diff */
+.diff { width: 100%; table-layout: fixed; font: 12px/1.35 ui-monospace, Menlo, Consolas, monospace; }
+.diff td { padding: 1px 6px; white-space: pre-wrap; word-break: break-all; border-bottom: none; }
+.diff td.ln { width: 42px; color: var(--muted); text-align: right; user-select: none; }
+.diff .add { background: var(--add); } .diff .del { background: var(--del); } .diff .chg { background: var(--chg); }
+.diff .skip td { text-align: center; color: var(--muted); background: #181c23; }
+pre.raw { overflow: auto; max-height: 70vh; background: #0e1015; padding: 10px; border-radius: 8px; font-size: 12px; }

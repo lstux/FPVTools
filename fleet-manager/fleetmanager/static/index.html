@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fleet manager</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <a class="brand" href="#/">Fleet manager</a>
+    <div class="scan">
+      <select id="port" title="Serial port of the flight controller"></select>
+      <label class="check" title="Read settings with the CLI (the FC reboots afterwards)">
+        <input type="checkbox" id="cli" checked> full config
+      </label>
+      <button id="scan-btn" class="primary">Detect drone</button>
+    </div>
+  </header>
+  <div id="toast" hidden></div>
+  <main id="main"></main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

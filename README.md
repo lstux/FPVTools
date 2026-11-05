@@ -63,3 +63,10 @@ the ExpressLRS Backpack telemetry (GPS included), drives a pan/tilt antenna trac
 compass and barometer, and a status screen on the LilyGO TTGO TS), and a Python web application shows a cockpit-style
 ground station: goggles/VRX video with a head-up display, map, telemetry, flying weather. See [`esp-tracker/README.md`](esp-tracker/README.md) and
 [`esp-tracker/docs/usage.md`](esp-tracker/docs/usage.md).
+
+
+# Fleet manager
+
+[`fleet-manager/`](fleet-manager) is a catalogue of your drones: plug a Betaflight/INAV flight controller in and it
+pre-fills a sheet (firmware, board, sensors, receiver, VTX…) that you complete by hand, and keeps the history of
+the FC configuration with a side-by-side comparison. See [`fleet-manager/README.md`](fleet-manager/README.md).

@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fleetmanager"
+version = "0.1.0"
+description = "Catalogue of your FPV drones: reads firmware and configuration from the flight controller over USB"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "fastapi>=0.110",
+    "pydantic>=2",
+    "uvicorn>=0.27",
+    "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7", "httpx>=0.27"]
+
+[project.scripts]
+fleetmanager = "fleetmanager.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["fleetmanager*"]
+
+[tool.setuptools.package-data]
+fleetmanager = ["static/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
