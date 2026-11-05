@@ -1,5 +1,10 @@
 # FPVTools
 
+> **🚧 Work in progress: this repository is being completely redone.**
+> Nothing here should be considered working for now. The new code (starting with
+> [`esp-tracker/`](esp-tracker)) is written and unit-tested on a PC but has **not been run on real
+> hardware yet**, and the older scripts below have not been re-checked. Expect breaking changes.
+
 Install/Update easily Linux tools for configuring your UAV (expresslrs,inav,emufilght,betaflight-configurator...)
 
 
@@ -33,3 +38,11 @@ Check fpvtools.sh usage with :
  * jesc : jesc-configurator, flash/configure JESC ESCs
  * gyroflow : video stabilisation with gyro logs
  
+
+# ESP-NOW antenna tracker / ground station
+
+[`esp-tracker/`](esp-tracker) is not an installable configurator but a small project of its own: an ESP32 receives
+the ExpressLRS Backpack telemetry (GPS included), drives a pan/tilt antenna tracker (optionally with its own GPS,
+compass and barometer, and a status screen on the LilyGO TTGO TS), and a Python web application shows a cockpit-style
+ground station: goggles/VRX video with a head-up display, map, telemetry, flying weather. See [`esp-tracker/README.md`](esp-tracker/README.md) and
+[`esp-tracker/docs/usage.md`](esp-tracker/docs/usage.md).

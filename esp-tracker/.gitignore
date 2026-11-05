@@ -1,0 +1,13 @@
+# build output
+firmware/.pio/
+firmware/tests/build/
+backend/build/
+backend/dist/
+backend/*.egg-info/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+# flight logs
+*.jsonl
+!backend/tests/fixtures/*.jsonl

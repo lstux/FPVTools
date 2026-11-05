@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1d232b">
+  <title>ESP Tracker ground station</title>
+  <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app" class="video-main">
+
+  <!-- annunciator strip: one cell per system, colour = state (green ok, amber caution, red warning) -->
+  <header id="top" aria-label="System status">
+    <div class="ann" id="a-conn" title="USB link between this computer and the tracker"><b>Tracker</b><span>–</span></div>
+    <div class="ann" id="a-link" title="Radio link quality and RSSI (uplink, from the drone)"><b>Link</b><span>–</span></div>
+    <div class="ann" id="a-gps" title="GPS satellites seen by the drone"><b>GPS</b><span>–</span></div>
+    <div class="ann" id="a-bat" title="Drone battery"><b>Batt</b><span>–</span></div>
+    <div class="ann" id="a-mode" title="Flight mode reported by the flight controller"><b>Mode</b><span>–</span></div>
+    <div class="ann" id="a-time" title="Armed time this flight"><b>Flight</b><span>0:00</span></div>
+    <div class="spacer"></div>
+    <div class="clock" id="clock" title="Local time">--:--</div>
+    <nav class="tabs" aria-label="Panels">
+      <button data-panel="tracker" title="Tracker: home, pointing, servos">Tracker</button>
+      <button data-panel="weather" title="Weather at the field" id="tab-weather">Weather</button>
+      <button data-panel="link" title="Radio link, flight statistics, device">Link</button>
+      <button data-panel="console" title="Commands and messages">Console</button>
+      <button data-panel="display" title="Video source, map and HUD settings">Display</button>
+    </nav>
+  </header>
+
+  <main id="stage">
+    <section id="pane-video" class="pane" aria-label="Video and head-up display">
+      <img id="vid-stream" alt="" decoding="async">
+      <video id="vid-local" class="hidden" autoplay muted playsinline></video>
+      <canvas id="hud" aria-hidden="true"></canvas>
+      <div id="vid-status" class="pane-note hidden"></div>
+      <button class="swap" data-swap title="Swap video and map" aria-label="Swap video and map"></button>
+    </section>
+
+    <section id="pane-map" class="pane" aria-label="Map">
+      <div id="map"></div>
+      <div id="maptools">
+        <button id="btn-follow" class="on" title="Keep the drone centred">Follow</button>
+        <button id="btn-centerhome" title="Centre the map on the tracker">Home</button>
+        <button id="btn-fit" title="Show the whole trail">Fit</button>
+      </div>
+      <div id="maphint" class="pane-note hidden">Click the map where the tracker stands</div>
+      <button class="swap" data-swap title="Swap video and map" aria-label="Swap video and map"></button>
+    </section>
+
+    <aside id="drawer" class="hidden" aria-label="Panel">
+      <div class="drawer-head">
+        <h2 id="drawer-title">Tracker</h2>
+        <button id="drawer-close" title="Close panel" aria-label="Close panel">✕</button>
+      </div>
+
+      <!-- ===================================================================== tracker -->
+      <section class="panel" data-panel="tracker">
+        <dl class="readout">
+          <dt>Status</dt><dd id="v-tstat">–</dd>
+          <dt>Home</dt><dd id="v-home">not set</dd>
+          <dt>Azimuth / elevation</dt><dd id="v-azel">–</dd>
+          <dt>Pan / tilt</dt><dd id="v-pantilt">–</dd>
+        </dl>
+        <div class="servo" aria-hidden="true"><div class="servo-bar"><i id="m-pan"></i></div><div class="servo-bar"><i id="m-tilt"></i></div></div>
+
+        <h3>Set the tracker position</h3>
+        <div class="row">
+          <button id="btn-home-tgps" class="hidden" title="Average the GPS module of the tracker for ~10 s">Use tracker GPS</button>
+          <button id="btn-home-drone" title="Drone sitting next to the tracker with 6+ satellites">Use drone position</button>
+          <button id="btn-home-geo" title="Uses this device's GPS (needs https or localhost)">Use this device</button>
+          <button id="btn-home-map" title="Then click on the map">Pick on map</button>
+          <button id="btn-home-clear" class="quiet">Clear</button>
+        </div>
+        <div class="row">
+          <label>Altitude of the tracker (m, sea level)
+            <input id="in-halt" type="number" step="1" placeholder="auto">
+          </label>
+          <button id="btn-halt-drone" class="quiet" title="Copy the drone's current GPS altitude">Copy drone altitude</button>
+        </div>
+
+        <h3>Sensors on the tracker</h3>
+        <p class="fine" id="sens-none">No GPS, compass or barometer on the tracker. They are optional: see the usage guide.</p>
+        <div id="sens-block" class="hidden">
+          <dl class="readout">
+            <dt>GPS</dt><dd id="v-tgps">–</dd>
+            <dt>Compass</dt><dd id="v-compass">–</dd>
+            <dt>Level</dt><dd id="v-level">–</dd>
+            <dt>Barometer</dt><dd id="v-tbaro">–</dd>
+          </dl>
+          <div class="row" id="row-cal">
+            <button id="btn-cal">Calibrate compass</button>
+            <button id="btn-cal-clear" class="quiet">Forget calibration</button>
+          </div>
+          <p class="fine hidden" id="cal-hint">Turn the tracker slowly through one full circle, keeping it flat, then press <b>Finish calibration</b>. Keep it away from metal and the servos' magnets. Then <b>Save to tracker</b>.</p>
+          <div class="row seg" role="group" aria-label="North reference" id="row-north">
+            <button data-north="1" title="The compass sets the azimuth of the pan centre">North from compass</button>
+            <button data-north="0" title="Use the azimuth typed below">Typed azimuth</button>
+          </div>
+          <div class="row" id="row-decl">
+            <label>Magnetic declination (° east)
+              <input id="in-decl" type="number" step="0.1" min="-40" max="40" placeholder="0">
+            </label>
+            <label>Compass mounting (°)
+              <input id="in-mount" type="number" step="1" min="-360" max="360" placeholder="0">
+            </label>
+            <button id="btn-decl">Apply</button>
+          </div>
+        </div>
+
+        <h3>Pointing</h3>
+        <div class="row">
+          <label>Azimuth of the pan centre (°)
+            <input id="in-offset" type="number" min="0" max="360" step="1" placeholder="0">
+          </label>
+          <button id="btn-offset">Apply</button>
+        </div>
+        <div class="row seg" role="group" aria-label="Height used for the elevation">
+          <button data-altsrc="0" title="Drone GPS altitude minus the tracker altitude">Height from GPS</button>
+          <button data-altsrc="1" title="Drone barometer: more stable, assumes the drone was powered next to the tracker">Height from drone baro</button>
+        </div>
+        <div class="row seg" role="group" aria-label="Tracker mode">
+          <button id="btn-auto">Auto</button>
+          <button id="btn-manual">Manual</button>
+        </div>
+        <div class="row sliders hidden" id="manual-sliders">
+          <label>Pan <input id="sl-pan" type="range" min="0" max="180" step="1" value="90"></label>
+          <label>Tilt <input id="sl-tilt" type="range" min="0" max="180" step="1" value="0"></label>
+        </div>
+        <div class="row">
+          <button id="btn-save" title="Store home, offset and limits in the tracker's flash">Save to tracker</button>
+        </div>
+      </section>
+
+      <!-- ===================================================================== weather -->
+      <section class="panel" data-panel="weather">
+        <div id="wx-error" class="note bad hidden"></div>
+        <div id="wx-empty" class="note">Set the tracker position or wait for a GPS fix to get the forecast.</div>
+        <div id="wx-body" class="hidden">
+          <div class="wx-now">
+            <div class="wx-wind">
+              <svg viewBox="-50 -50 100 100" class="rose" aria-hidden="true">
+                <circle r="44" class="rose-ring"/>
+                <text y="-32" class="rose-n">N</text>
+                <g id="wx-arrow"><path d="M0 -38 L9 -18 L3 -18 L3 30 L-3 30 L-3 -18 L-9 -18 Z"/></g>
+              </svg>
+              <div><span id="wx-w10" class="big">–</span><span class="unit">km/h</span><br><span id="wx-gust">gusts –</span><br><span id="wx-dir" class="muted">–</span></div>
+            </div>
+            <dl class="readout compact">
+              <dt>Sky</dt><dd id="wx-sky">–</dd>
+              <dt>Visibility</dt><dd id="wx-vis">–</dd>
+              <dt>Cloud base (est.)</dt><dd id="wx-base">–</dd>
+              <dt>Temperature</dt><dd id="wx-temp">–</dd>
+              <dt>Rain</dt><dd id="wx-rain">–</dd>
+              <dt>Convection (CAPE)</dt><dd id="wx-cape">–</dd>
+              <dt>Freezing level</dt><dd id="wx-frz">–</dd>
+              <dt>Sunrise / sunset</dt><dd id="wx-sun">–</dd>
+            </dl>
+          </div>
+
+          <h3>Wind by height above the field</h3>
+          <div id="wx-profile" class="wx-profile"></div>
+
+          <h3>Next hours</h3>
+          <div class="wx-hours-wrap"><table id="wx-hours" class="wx-hours"></table></div>
+
+          <p class="fine"><span id="wx-meta"></span> <button id="wx-refresh" class="quiet small">Refresh</button></p>
+          <p class="fine">Forecast by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0). Cloud base is estimated from the dew point spread.</p>
+        </div>
+      </section>
+
+      <!-- ===================================================================== link -->
+      <section class="panel" data-panel="link">
+        <h3>Radio link</h3>
+        <dl class="readout">
+          <dt>Uplink LQ</dt><dd id="v-lq">–</dd>
+          <dt>RSSI antenna 1 / 2</dt><dd id="v-rssi">–</dd>
+          <dt>SNR</dt><dd id="v-snr">–</dd>
+          <dt>TX power</dt><dd id="v-txpwr">–</dd>
+          <dt>Active antenna / rate index</dt><dd id="v-ant">–</dd>
+          <dt>Downlink</dt><dd id="v-dn">–</dd>
+        </dl>
+        <h3>This flight</h3>
+        <dl class="readout">
+          <dt>Armed time</dt><dd id="v-ftime">–</dd>
+          <dt>Max distance</dt><dd id="v-fdist">–</dd>
+          <dt>Max height above home</dt><dd id="v-falt">–</dd>
+          <dt>Max speed</dt><dd id="v-fspd">–</dd>
+          <dt>Distance flown</dt><dd id="v-fpath">–</dd>
+        </dl>
+        <div class="row">
+          <button id="btn-clear" class="quiet" title="Erase the trail and flight statistics">Reset trail and statistics</button>
+          <a id="btn-gpx" class="button quiet" href="/api/track.gpx" download="flight.gpx">Download GPX</a>
+        </div>
+        <h3>Drone position</h3>
+        <dl class="readout">
+          <dt>Latitude, longitude</dt><dd id="v-latlon">–</dd>
+          <dt>GPS altitude (sea level)</dt><dd id="v-alt">–</dd>
+          <dt>Baro altitude / vario</dt><dd id="v-baro">–</dd>
+          <dt>Pitch / roll / yaw</dt><dd id="v-att">–</dd>
+        </dl>
+        <h3>Tracker device</h3>
+        <dl class="readout">
+          <dt>Firmware</dt><dd id="v-fw">–</dd>
+          <dt>ESP-NOW</dt><dd id="v-espnow">–</dd>
+          <dt>Bound UID</dt><dd id="v-uid">–</dd>
+          <dt>Packets</dt><dd id="v-pk">–</dd>
+          <dt>Errors</dt><dd id="v-err">–</dd>
+        </dl>
+      </section>
+
+      <!-- ===================================================================== console -->
+      <section class="panel" data-panel="console">
+        <pre id="console" aria-live="polite"></pre>
+        <form id="cmdform" autocomplete="off">
+          <input id="cmdline" placeholder="HELP, STATUS, SET offset 90, BIND my phrase…" spellcheck="false" aria-label="Command">
+          <button>Send</button>
+        </form>
+      </section>
+
+      <!-- ===================================================================== display -->
+      <section class="panel" data-panel="display">
+        <h3>Video</h3>
+        <div class="row">
+          <label>Source
+            <select id="sel-video">
+              <option value="off">No video (synthetic horizon)</option>
+              <option value="server">Capture dongle on the ground station</option>
+              <option value="local">Camera on this device</option>
+            </select>
+          </label>
+        </div>
+        <div class="row hidden" id="row-localcam">
+          <label>Camera <select id="sel-localcam"></select></label>
+        </div>
+        <p class="fine" id="video-info"></p>
+
+        <h3>Map</h3>
+        <div class="row seg" role="group" aria-label="Map style">
+          <button id="btn-map-night" data-mapstyle="night">Night</button>
+          <button id="btn-map-day" data-mapstyle="day">Day</button>
+        </div>
+
+        <h3>Head-up display</h3>
+        <div class="row">
+          <label>Altitude shown
+            <select id="sel-altref">
+              <option value="auto">Above home, else baro, else GPS</option>
+              <option value="home">Above home (GPS)</option>
+              <option value="baro">Baro (above take-off)</option>
+              <option value="msl">GPS, above sea level</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label>Battery cells <select id="sel-cells"><option value="auto">Auto</option></select></label>
+          <label>Low cell voltage <input id="in-lowcell" type="number" step="0.05" min="2.8" max="4.0"></label>
+        </div>
+        <div class="row">
+          <label>Wind caution (km/h) <input id="in-windwarn" type="number" step="1" min="5" max="150"></label>
+          <label>Wind limit (km/h) <input id="in-windmax" type="number" step="1" min="5" max="200"></label>
+        </div>
+        <div class="row">
+          <button id="btn-fullscreen" class="quiet">Full screen</button>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <!-- secondary readouts, always visible under the picture -->
+  <footer id="bottom" aria-label="Readouts">
+    <div class="ro"><b>Home</b><span id="r-dist">–</span><small id="r-dist3d"></small></div>
+    <div class="ro"><b>Height</b><span id="r-rel">–</span><small id="r-altref"></small></div>
+    <div class="ro"><b>Speed</b><span id="r-gs">–</span><small>km/h</small></div>
+    <div class="ro"><b>Current</b><span id="r-amps">–</span><small id="r-mah"></small></div>
+    <div class="ro"><b>Antenna</b><span id="r-azel">–</span><small id="r-tstat"></small></div>
+    <div class="ro"><b>RSSI</b><span id="r-rssi">–</span><small id="r-snr"></small></div>
+    <div class="ro" id="ro-wind"><b>Wind 120 m</b><span id="r-wind">–</span><small id="r-gust"></small></div>
+  </footer>
+</div>
+
+<script src="/static/vendor/leaflet/leaflet.js"></script>
+<script src="/static/hud.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
