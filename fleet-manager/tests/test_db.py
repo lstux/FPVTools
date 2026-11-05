@@ -104,3 +104,21 @@ def test_update_ignores_unknown_columns(fleet):
 def test_hints_and_normalize_helpers():
     assert hints_from_info({})["receiver"] == ""
     assert normalize_diff("a  \r\nb\r\n\r\n") == "a\nb\n"
+
+
+def test_a_deleted_component_is_not_recreated_by_a_new_detection(fleet):
+    det = detection()
+    did = fleet.register(det.info, det.diff_text, det.status_text)["drone_id"]
+    gyro = comp(fleet.get_drone(did), "gyro")
+    fleet.delete_component(gyro["id"])
+    det = detection()
+    fleet.register(det.info, det.diff_text, det.status_text)
+    assert not any(c["type"] == "gyro" for c in fleet.get_drone(did)["components"])
+
+
+def test_register_is_one_transaction(fleet, monkeypatch):
+    det = detection()
+    monkeypatch.setattr(fleet, "_sync_hints", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    with pytest.raises(RuntimeError):
+        fleet.register(det.info, det.diff_text, det.status_text)
+    assert fleet.list_drones() == [], "a failed registration must not leave a half-created drone"

@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .esc import describe as esc_describe
 from .esc import summary as esc_summary
 
 SCHEMA = """
@@ -94,7 +95,7 @@ def hints_from_info(info: Dict[str, Any]) -> Dict[str, str]:
     def chip(sensor: str) -> str:
         return sensors.get(sensor) or ("detected by the FC" if flags.get(sensor) else "")
 
-    hints = {t: "" for t in HINTED_COMPONENTS}
+    hints = {t: "" for t in HINTED_COMPONENTS if t != "esc"}  # esc: only when read (see below)
     hints["gyro"] = sensors.get("gyro", "")
     hints["accelerometer"] = chip("acc")
     hints["barometer"] = chip("baro")
@@ -120,9 +121,21 @@ def hints_from_info(info: Dict[str, Any]) -> Dict[str, str]:
     if settings.get("motor_poles"):
         motor.append("%s poles" % settings["motor_poles"])
     hints["motor"] = ", ".join(motor)
-    if info.get("escs"):
-        hints["esc"] = esc_summary(info["escs"])
     return hints
+
+
+ESC_HEADER = "# fleetmanager: ESCs (read through the 4-way interface)"
+
+
+def esc_section(escs: List[Dict[str, Any]]) -> str:
+    return ESC_HEADER + "\n" + "\n".join("# " + esc_describe(e) for e in escs) + "\n"
+
+
+def split_esc_section(text: str) -> "tuple[str, Optional[str]]":
+    i = text.find(ESC_HEADER)
+    if i < 0:
+        return text, None
+    return text[:i].rstrip("\n") + "\n", text[i:]
 
 
 def _row(r: Optional[sqlite3.Row]) -> Optional[Dict[str, Any]]:
@@ -176,15 +189,18 @@ class Fleet:
 
     def create_drone(self, name: str, fc_uid: Optional[str] = None, skeleton: bool = True) -> int:
         with self._lock, self._db:
-            cur = self._db.execute(
-                "INSERT INTO drone (name, fc_uid, created_at) VALUES (?, ?, ?)", (name, fc_uid, _now())
+            return self._insert_drone(name, fc_uid, skeleton)
+
+    def _insert_drone(self, name: str, fc_uid: Optional[str], skeleton: bool) -> int:
+        cur = self._db.execute(
+            "INSERT INTO drone (name, fc_uid, created_at) VALUES (?, ?, ?)", (name, fc_uid, _now())
+        )
+        drone_id = cur.lastrowid
+        if skeleton:
+            self._db.executemany(
+                "INSERT INTO component (drone_id, type) VALUES (?, ?)",
+                [(drone_id, t) for t in BASE_COMPONENTS],
             )
-            drone_id = cur.lastrowid
-            if skeleton:
-                self._db.executemany(
-                    "INSERT INTO component (drone_id, type) VALUES (?, ?)",
-                    [(drone_id, t) for t in BASE_COMPONENTS],
-                )
         return drone_id
 
     def update_drone(self, drone_id: int, fields: Dict[str, Any]) -> bool:
@@ -259,30 +275,53 @@ class Fleet:
         self, info: Dict[str, Any], diff_text: Optional[str], status_text: Optional[str]
     ) -> Dict[str, Any]:
         """Record a detection: create the drone (with a skeleton) or refresh it, then snapshot the
-        config if it changed since the last snapshot. Manual fields are never touched."""
+        config if it changed since the last snapshot. Manual fields are never touched.
+
+        ESCs are optional at each detection: when they were not read this time, the last known ESC
+        data is carried over (hint, ``detected`` and snapshot text), so that toggling the ESC reading
+        never creates a snapshot by itself.
+        """
         uid = info.get("uid") or "noid:%s:%s" % (info.get("board_id", "?"), info.get("craft_name", "?"))
         now = _now()
+        info = dict(info)
         with self._lock, self._db:
-            r = self._db.execute("SELECT id FROM drone WHERE fc_uid = ?", (uid,)).fetchone()
+            r = self._db.execute("SELECT id, detected FROM drone WHERE fc_uid = ?", (uid,)).fetchone()
             created = r is None
             if created:
                 name = info.get("craft_name") or "%s %s" % (info.get("firmware", "FC"), info.get("board_id", ""))
-                drone_id = self.create_drone(name.strip(), uid)
+                drone_id = self._insert_drone(name.strip(), uid, True)
             else:
                 drone_id = r["id"]
+                previous = json.loads(r["detected"] or "{}")
+                if "escs" not in info and previous.get("escs"):
+                    info["escs"] = previous["escs"]
+                    info["escs_read_at"] = previous.get("escs_read_at")
+                    info.setdefault("esc_interface", previous.get("esc_interface"))
+            if info.get("escs") and not info.get("escs_read_at"):
+                info["escs_read_at"] = now
             self._db.execute(
                 "UPDATE drone SET detected = ?, last_seen = ? WHERE id = ?",
                 (json.dumps(info), now, drone_id),
             )
-            self._sync_hints(drone_id, hints_from_info(info))
+            hints = hints_from_info(info)
+            if info.get("escs"):
+                hints["esc"] = esc_summary(info["escs"])
+            self._sync_hints(drone_id, hints, create_missing=created)
 
             snapshot_id = None
             if diff_text and diff_text.strip():
-                norm = normalize_diff(diff_text)
-                digest = hashlib.sha256(norm.encode()).hexdigest()
                 last = self._db.execute(
-                    "SELECT hash FROM snapshot WHERE drone_id = ? ORDER BY id DESC LIMIT 1", (drone_id,)
+                    "SELECT hash, diff_text FROM snapshot WHERE drone_id = ? ORDER BY id DESC LIMIT 1",
+                    (drone_id,),
                 ).fetchone()
+                norm = normalize_diff(diff_text)
+                if info.get("escs"):
+                    norm += "\n" + esc_section(info["escs"])
+                elif last is not None:
+                    carried = split_esc_section(last["diff_text"])[1]
+                    if carried:
+                        norm += "\n" + carried
+                digest = hashlib.sha256(norm.encode()).hexdigest()
                 if last is None or last["hash"] != digest:
                     cur = self._db.execute(
                         "INSERT INTO snapshot (drone_id, taken_at, firmware, version, board, craft_name, "
@@ -308,7 +347,9 @@ class Fleet:
             "changed": snapshot_id is not None,
         }
 
-    def _sync_hints(self, drone_id: int, hints: Dict[str, str]) -> None:
+    def _sync_hints(self, drone_id: int, hints: Dict[str, str], create_missing: bool) -> None:
+        """Refresh the hints of existing components. Missing ones are only created for a new drone:
+        a component you deleted stays deleted."""
         for type_, hint in hints.items():
             r = self._db.execute(
                 "SELECT id FROM component WHERE drone_id = ? AND type = ? ORDER BY id LIMIT 1",
@@ -316,7 +357,7 @@ class Fleet:
             ).fetchone()
             if r is not None:
                 self._db.execute("UPDATE component SET hint = ? WHERE id = ?", (hint, r["id"]))
-            elif hint:
+            elif hint and create_missing:
                 self._db.execute(
                     "INSERT INTO component (drone_id, type, hint) VALUES (?, ?, ?)", (drone_id, type_, hint)
                 )

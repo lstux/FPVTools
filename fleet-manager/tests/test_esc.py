@@ -105,13 +105,30 @@ def test_describe_and_summary():
     assert summary([ok, dict(ok, index=2), dict(ok, index=3), bad]) == "3x Bluejay 0.21 (EFM8BB21x), 1 not read"
 
 
-def test_detect_reads_escs_before_the_cli_and_stores_them_in_the_snapshot_text():
-    fc = fc_with(bluejay_esc(), bluejay_esc())
+def test_detect_reads_escs_before_the_cli_and_stores_them_in_the_snapshot_text(tmp_path):
+    fc = fc_with(bluejay_esc(), bluejay_esc(sub=9))
     det = detect(fc, with_esc=True, timeout=0.2, cli_timeout=1)
-    assert [e["firmware"] for e in det.info["escs"]] == ["Bluejay", "Bluejay"]
+    assert [e["version"] for e in det.info["escs"]] == ["0.21", "0.09"]
     assert det.info["esc_interface"]["protocol"] == 108
-    assert "# esc 2: Bluejay 0.21 on EFM8BB21x" in det.diff_text
     assert det.info["sensors"] and fc.exited and not fc.in_4way  # the CLI still worked afterwards
+    fleet = Fleet(tmp_path / "f.db")
+    sid = fleet.register(det.info, det.diff_text, det.status_text)["snapshot_id"]
+    assert "# esc 2: Bluejay 0.09 on EFM8BB21x" in fleet.get_snapshot(sid)["diff_text"]
+    fleet.close()
+
+
+def test_toggling_the_esc_reading_never_creates_a_snapshot(tmp_path):
+    fleet = Fleet(tmp_path / "f.db")
+    with_esc = detect(fc_with(bluejay_esc()), with_esc=True, timeout=0.2, cli_timeout=1)
+    first = fleet.register(with_esc.info, with_esc.diff_text, with_esc.status_text)
+    without = detect(fc_with(bluejay_esc()), timeout=0.2, cli_timeout=1)
+    assert not fleet.register(without.info, without.diff_text, without.status_text)["changed"]
+    d = fleet.get_drone(first["drone_id"])
+    assert d["detected"]["escs"][0]["firmware"] == "Bluejay" and d["detected"]["escs_read_at"]
+    assert next(c for c in d["components"] if c["type"] == "esc")["hint"] == "1x Bluejay 0.21 (EFM8BB21x)"
+    again = detect(fc_with(bluejay_esc()), with_esc=True, timeout=0.2, cli_timeout=1)
+    assert not fleet.register(again.info, again.diff_text, again.status_text)["changed"]
+    fleet.close()
 
 
 def test_esc_failure_is_only_a_warning():

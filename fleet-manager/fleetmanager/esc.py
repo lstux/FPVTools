@@ -160,14 +160,15 @@ def read_esc(fw: FourWay, index: int, retries: int = 3) -> Dict[str, Any]:
         esc.update(
             main_revision=main,
             sub_revision=sub,
-            version="%d.%d" % (main, sub),
             layout_revision=data[2],
             layout=_ascii(data[0x40:0x50]),
             mcu_tag=_ascii(data[0x50:0x60]),
             name=name,
         )
+        esc["version"] = "%d.%d" % (main, sub)  # BLHeli_S: 16.7
         if re.search(r"Bluejay", name):
             esc["firmware"] = "Bluejay"
+            esc["version"] = "%d.%02d" % (main, sub)  # 0.21, 0.09 (as esc-configurator shows it)
         elif name == "" and main == 16 and sub in (8, 9):
             esc["firmware"] = "BLHeli_M"  # esc-configurator's own guess, by version
         else:
@@ -181,7 +182,7 @@ def read_esc(fw: FourWay, index: int, retries: int = 3) -> Dict[str, Any]:
         esc.update(
             main_revision=data[3],
             sub_revision=data[4],
-            version="%d.%d" % (data[3], data[4]),
+            version="%d.%02d" % (data[3], data[4]),
             layout_revision=data[1],
             bootloader_revision=data[2],
             name=_ascii(data[5:17]),

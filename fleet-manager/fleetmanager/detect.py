@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from .esc import FourWayError, describe, read_escs
+from .esc import FourWayError, read_escs
 from .msp import (
     MSP_API_VERSION,
     MSP_BOARD_INFO,
@@ -179,7 +179,7 @@ def read_msp_info(msp: MspClient) -> Dict[str, Any]:
     p = optional(MSP_VTX_CONFIG)
     if p and len(p) >= 7:
         freq = struct.unpack_from("<H", p, 5)[0]
-        if freq or p[1]:
+        if p[0] != 0xFF and (freq or p[1]):  # 0xFF = VTXDEV_UNKNOWN
             info["vtx"] = {
                 "type": p[0],
                 "band": p[1],
@@ -308,9 +308,4 @@ def detect(
             diff_text, status_text = read_cli(ser, info, cli_timeout)
         except CliError as e:
             info["warnings"].append("CLI not available, no configuration snapshot: %s" % e)
-        if diff_text is not None and info.get("escs"):
-            # ESC firmware is part of the saved configuration, so that a flashed ESC makes a new snapshot
-            diff_text += "\n\n# fleetmanager: ESCs (read through the 4-way interface)\n" + "\n".join(
-                "# " + describe(e) for e in info["escs"]
-            )
     return Detection(info, diff_text, status_text)

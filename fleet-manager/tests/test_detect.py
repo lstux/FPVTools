@@ -50,3 +50,11 @@ def test_parsers():
     assert parse_get("noise\nmotor_poles = 14\nAllowed values: 2-64", "motor_poles") == {"motor_poles": "14"}
     assert parse_get("Invalid name", "motor_poles") == {}
     assert DIFF_ALL  # fixture sanity
+
+
+def test_unknown_vtx_device_is_ignored():
+    import struct
+    from fleetmanager.msp import MSP_VTX_CONFIG
+    fc = FakeFC()
+    fc.replies[MSP_VTX_CONFIG] = bytes([0xFF, 0, 0, 0, 0]) + struct.pack("<H", 0) + bytes(2)
+    assert "vtx" not in detect(fc, with_cli=False, timeout=0.2).info
