@@ -1,219 +1,120 @@
-#!/bin/sh
-WORKDIR="$(realpath "$(dirname "${0}")")"
-TOOL=""
-VERSION="latest"
-MODE="instupdate"
-INSTALLDIR="${FPV_INSTALLDIR:-/opt/fpvtools}"
-TPMDIR="$(mktemp -d)"
-trap "rm -rf ${TMPDIR}" EXIT
+#!/usr/bin/env bash
+# fpvtools.sh : install/update the Linux tools used to configure FPV drones.
+# Each tool is described by tools/<tool>.conf and installed with ghrelease-install.
+set -u -o pipefail
 
-VERBOSE="${VERBOSE:-false}"
-DEBUG="${DEBUG:-false}"
+WORKDIR="$(cd "$(dirname "$(readlink -f "${0}")")" && pwd)"
+PROG="$(basename "${0}")"
+INSTALLDIR="${FPV_INSTALLDIR:-/opt/FPVTools}"
+LINKDIR="${FPV_LINKDIR:-${HOME}/.local/bin}"
+GRI="${WORKDIR}/ghrelease-install"
+MODE="instupdate"
+VERSION="latest"
+GRI_OPTS=()
 
 usage() {
-  printf "Usage : $(basename "${0}") [options] tool\n"
-  printf "  setup various FPV drone configuration tools\n"
-  printf "  use '$(basename "${0}") ls' to list available tools\n"
-  printf "  tools are installed to '${INSTALLDIR}'\n"
-  printf "  set FPV_INSTALLDIR env var to adjust\n"
-  printf "Options :\n"
-  printf "  -V : specify a version [latest]\n"
-  printf "  -l : show latest release version\n"
-  printf "  -c : check installed\n"
-  printf "  -I : install/update (default)\n"
-  printf "  -i : install only\n"
-  printf "  -u : update only\n"
-  printf "  -r : reinstall\n"
-  printf "  -c : check installed\n"
-  printf "  -R : remove\n"
-  printf "  -v : be verbose\n"
-  printf "  -d : debug mode\n"
-  printf "  -h : display this help message\n"
-  exit 1
+  cat <<USAGE
+Usage : ${PROG} [options] tool [tool...]
+  Install/update FPV configuration tools from their GitHub releases.
+  'ls' lists the available tools, 'all' selects every (non interactive) tool.
+  Tools go to '${INSTALLDIR}' (set FPV_INSTALLDIR to change),
+  launchers are linked in '${LINKDIR}' (set FPV_LINKDIR to change).
+Options :
+  -I : install or update (default)
+  -i : install only (skip if already installed)
+  -u : update only (skip if not installed)
+  -r : reinstall
+  -c : check installed version against the latest release
+  -l : show latest release
+  -s : show the release assets and which one would be installed
+  -R : remove
+  -V version : install a specific release tag [latest]
+  -P : allow pre-releases
+  -q : quiet
+  -d : debug (shell trace)
+  -h : this help
+USAGE
 }
 
-httpcode()   { curl -sIL -o /dev/null -w "%{http_code}\n" "${1}"; }
-
-msg() { ${VERBOSE} || return 0; printf "$@\n"; }
-debug() { ${DEBUG} || return 0; msg "$@"; local a; read -p "Press Enter to continue" a; }
-
-latest_release() { basename "$(curl -s -o /dev/null -L -w "%{url_effective}\n" "${GITURL}/releases/latest")"; }
-installed_release() { cat "${INSTALLDIR}/${INSTDIRNAME}/.fpvtools_version" 2>/dev/null; }
-
-tool_infos() {
-  local t="${TOOLNAME:-${TOOL}}"
-  printf "FPVTools : '${t}'\n"
-  [ -n "${TOOLDESC}" ] && printf "${TOOLDESC}\n"
-  printf "  %-18s : %s\n" "Latest release" "$(latest_release)"
-  printf "  %-18s : %s\n" "Installed release" "$(installed_release)"
-  printf "  %-18s : %s\n" "Git URL" "${GITURL}"
-}
-
-# Check if tool is installed to latest version
-# errcode : 0=latest, 1=installed, 2=not_installed
-check_installed() {
-  local idir="${INSTALLDIR}/${INSTDIRNAME}"
-  [ -d "${idir}" ] || { printf "$(basename "${idir}") is not installed\n" >&2; return 2; }
-  local latest="$(latest_release "${GITURL}")" current="$(installed_release)"
-  case "${current}" in
-    "${latest}") printf "$(basename "${GITPACKAGE}") installed and latest version (${latest})\n" >&2; return 0;;
-    "")          printf "$(basename "${GITPACKAGE}") installed, unknown version (latest is ${latest})\n" >&2; return 1;;
-    *)           printf "$(basename "${GITPACKAGE}") installed, version ${current} while latest is ${latest}\n" >&2; return 1;;
-  esac
-  return 2
-}
-
-archextract() {
-  local arch="${1}" dir="${2}" zopt="-q" topt=""
-  ${VERBOSE} && { zopt=""; topt="v"; }
-  [ -d "${dir}" ] || install -d -m755 "${dir}" || return 1
-  case "${arch}" in
-    *.zip|*.ZIP)      unzip ${zopt} "${arch}" -d "${dir}"; return $?;;
-    *.tar.gz|*.tgz)   tar x${topt}zf "${arch}" -C "${dir}"; return $?;;
-    *.tar.bz2|*.tbz2) tar x${topt}jf "${arch}" -C "${dir}"; return $?;;
-    *.tar.xz|*.txz)   tar x${topt}Jf "${arch}" -C "${dir}"; return $?;;
-    *)                printf "Error : unsupported archive format ($(basename "${arch}"))\n" >&2; return 2;;
-  esac
-}
-
-downextract() {
-  local ziplink="${GITURL}/releases/download/${VERSION}/${ZIPNAME}"
-  if [ -e "${INSTALLDIR}/${ZIPNAME}" ]; then
-    msg "${INSTALLDIR}/${ZIPNAME} already available"
-  else
-    debug "Downloading '${ziplink}' to '${INSTALLDIR}'"
-    [ -d "${INSTALLDIR}" ] || install -d -m755 "${INSTALLDIR}" || return 1
-    wget "${ziplink}" -P "${INSTALLDIR}" || return 2
-  fi
-  if [ -n "${ZIPDIRNAME}" ]; then
-    debug "Extracting archive to '${INSTALLDIR}(/${ZIPDIRNAME})'"
-    archextract "${INSTALLDIR}/${ZIPNAME}" "${INSTALLDIR}" && \
-    mv "${INSTALLDIR}/${ZIPDIRNAME}" "${INSTALLDIR}/${INSTDIRNAME}-${VERSION}" || return 3
-  else
-    debug "Extracting archive to '${INSTALLDIR}/${INSTDIRNAME}-${VERSION}'"
-    archextract "${INSTALLDIR}/${ZIPNAME}" "${INSTALLDIR}/${INSTDIRNAME}-${VERSION}" || return 3
-  fi
-  rm -f "${INSTALLDIR}/${ZIPNAME}"
-  echo "${VERSION}" > "${INSTALLDIR}/${INSTDIRNAME}-${VERSION}/.fpvtools_version"
-}
-
-instupdate() {
-  local mode="${1}"
-  if [ "x${VERSION}" = "x" -o "${VERSION}" = "latest" ]; then
-    VERSION="$(latest_release)"
-    . "${WORKDIR}/tools/${TOOL}.conf"
-    [ -n "${INSTDIRNAME}" ] || INSTDIRNAME="${ZIPDIRNAME}"
-  fi
-  check_installed
-  case "$?" in
-    0) [ "${mode}" = "reinstall" ] || return 0;;
-    1) [ "${mode}" = "install" ] && return 0;;
-    2) [ "${mode}" = "update" ] && return 1;;
-  esac
-  if [ -e "${INSTALLDIR}/${INSTDIRNAME}-${VERSION}/${EXECBIN}" ]; then
-    if [ "${mode}" = "reinstall" ]; then
-      msg "Forcing reinstallation"
-      downextract || return $?
-    else
-      msg "'${INSTDIRNAME}-${VERSION}' already available, not reinstalling"
-    fi
-  else
-    downextract || return $?
-  fi
-  # Check Version Symlink
-  if ! [ -L "${INSTALLDIR}/${INSTDIRNAME}" ]; then
-    debug "Creating symlink '${INSTALLDIR}/${INSTDIRNAME}' -> '${INSTDIRNAME}-${VERSION}'"
-    ln -sv "${INSTDIRNAME}-${VERSION}" "${INSTALLDIR}/${INSTDIRNAME}"
-  else
-    if [ "$(readlink "${INSTALLDIR}/${INSTDIRNAME}")" = "${INSTDIRNAME}-${VERSION}" ]; then
-      msg "Symlink '${INSTDIRNAME}' -> '${INSTDIRNAME}-${VERSION}' OK"
-    else
-      debug "Updating symlink '${INSTALLDIR}/${INSTDIRNAME}' -> '${INSTDIRNAME}-${VERSION}'"
-      rm -f "${INSTALLDIR}/${INSTDIRNAME}" && \
-      ln -sv "${INSTDIRNAME}-${VERSION}" "${INSTALLDIR}/${INSTDIRNAME}"
-    fi
-  fi
-  # Check that binary is executable
-  [ -x "${INSTALLDIR}/${INSTDIRNAME}/${EXECBIN}" ] || chmod 755 "${INSTALLDIR}/${INSTDIRNAME}/${EXECBIN}"
-  find "${INSTALLDIR}/${INSTDIRNAME}" -type f | while read f; do file "${f}" | grep -q "executable" && chmod 755 "${f}"; done
-  # Check Binary symlink
-  if [ -L "/usr/bin/${EXECBIN}" ]; then
-    msg "Symlink '/usr/bin/${EXECBIN}' OK"
-  else
-    if [ -n "${EXECBIN}" ]; then
-      local sudo="sudo"
-      [ "$(id -un)" = "root" ] && sudo=""
-      debug "Creating symlink '/usr/bin/${EXECBIN}' -> '${INSTALLDIR}/${INSTDIRNAME}/${EXECBIN}'"
-      if [ -n "${EXECBIN}" ]; then
-        ${sudo} ln -sv "${INSTALLDIR}/${INSTDIRNAME}/${EXECBIN}" "/usr/bin/${EXECBIN}"
-      fi
-    fi
-  fi
-}
-
-uninstall() {
-  printf "Tools uninstallation not implemented for now :(\n" >&2
-  printf "Please remove needed folder(s) manually in ${INSTALLDIR}\n" >&2
-  return 1
-}
-
-while getopts V:lIirucRvdh opt; do case "${opt}" in
-  V) VERSION="${OPTARG}";;
-  l) MODE="latest";;
-  I) MODE="instupdate";;
-  i) MODE="install";;
-  r) MODE="reinstall";;
-  u) MODE="update";;
-  c) MODE="check";;
-  R) MODE="remove";;
-  v) VERBOSE=true;;
-  d) VERBOSE=true; DEBUG=true;;
-  *) usage;;
+while getopts IiurclsRV:Pqdh opt; do case "${opt}" in
+  I) MODE="instupdate";; i) MODE="install";; u) MODE="update";; r) MODE="reinstall";;
+  c) MODE="check";; l) MODE="latest";; s) MODE="show";; R) MODE="remove";;
+  V) VERSION="${OPTARG}";; P) GRI_OPTS+=(-P);;
+  q) GRI_OPTS+=(-q);; d) set -x;;
+  h) usage; exit 0;; *) usage >&2; exit 1;;
 esac; done
-shift $((${OPTIND} - 1))
+shift $((OPTIND - 1))
+[ $# -gt 0 ] || { usage >&2; exit 1; }
 
-GITACCOUNT=""
-GITPACKAGE=""
-TOOL="${1}"
-case "${TOOL}" in
-  ls) printf "Available tools :\n"
-      for tool in "${WORKDIR}/tools/"*.conf; do
-      printf " * %s\n" "$(basename "${tool}" .conf)"
-      done
-      exit 0;;
-  "") usage;;
-esac
+[ -x "${GRI}" ] || { echo "Error : ${GRI} not found or not executable" >&2; exit 1; }
 
-msg "Selected tool : '${TOOL}'"
-if ! [ -e "${WORKDIR}/tools/${TOOL}.conf" ]; then
-  printf "Error : unsupported tool '${TOOL}'\n" >&2
-  printf "Use '$(basename "${0}") ls' to list available tools\n" >&2
-  exit 2
+list_tools() { local f; for f in "${WORKDIR}"/tools/*.conf; do basename "${f}" .conf; done; }
+
+show_list() {
+  local t
+  printf 'Available tools :\n'
+  for t in $(list_tools); do
+    ( DESC=""; # shellcheck disable=SC1090
+      . "${WORKDIR}/tools/${t}.conf"; printf ' * %-16s %s\n' "${t}" "${DESC}" )
+  done
+}
+
+ensure_dirs() {
+  [ -d "${INSTALLDIR}" ] && [ -w "${INSTALLDIR}" ] && return 0
+  echo "Creating ${INSTALLDIR} (sudo needed once)..." >&2
+  local sudo="sudo"; [ "$(id -u)" = 0 ] && sudo=""
+  ${sudo} install -d -m755 -o "$(id -un)" -g "$(id -gn)" "${INSTALLDIR}" || return 1
+}
+
+path_hint() {
+  case ":${PATH}:" in *":${LINKDIR}:"*) ;; *) echo "Note : ${LINKDIR} is not in your PATH" >&2;; esac
+}
+
+# Runs one tool. Conf variables : DESC REPO NAME BIN LINKNAME ASSET EXTRA_OPTS, optional pre_install()
+run_tool() {
+  local tool="${1}" conf="${WORKDIR}/tools/${1}.conf" rc
+  [ -e "${conf}" ] || { echo "Error : unsupported tool '${tool}' (try '${PROG} ls')" >&2; return 2; }
+  # shellcheck disable=SC1090
+  ( DESC=""; ASSET=""; NAME=""; BIN=""; LINKNAME=""; EXTRA_OPTS=""
+    . "${conf}"
+    [ -n "${REPO:-}" ] || { echo "Error : ${conf} has no REPO" >&2; exit 2; }
+    declare -F pre_install >/dev/null && { pre_install || exit 1; }
+    [ -n "${NAME}" ] || NAME="${tool}"
+    opts=("${GRI_OPTS[@]}" -d "${INSTALLDIR}" -l "${LINKDIR}" -n "${NAME}" -v "${VERSION}")
+    [ -n "${ASSET}" ]    && opts+=(-a "${ASSET}")
+    [ -n "${BIN}" ]      && opts+=(-b "${BIN}")
+    [ -n "${LINKNAME}" ] && opts+=(-B "${LINKNAME}")
+    # shellcheck disable=SC2206
+    [ -n "${EXTRA_OPTS}" ] && opts+=(${EXTRA_OPTS})
+    gri() { "${GRI}" "${opts[@]}" "$@" "${REPO}"; }
+    printf '== %s (%s)\n' "${tool}" "${REPO}"
+    case "${MODE}" in
+      latest)  gri -L;;
+      show)    gri -s;;
+      check)   gri -c; rc=$?; [ ${rc} -le 2 ] && exit 0 || exit ${rc};;
+      remove)  gri -R;;
+      reinstall) ensure_dirs && gri -f;;
+      install) gri -c >/dev/null 2>&1; rc=$?
+               if [ ${rc} -eq 2 ]; then ensure_dirs && gri; else echo "${NAME} already installed (use -u to update)"; fi;;
+      update)  gri -c >/dev/null 2>&1; rc=$?
+               case ${rc} in 2) echo "${NAME} is not installed (use -i)";; 0) echo "${NAME} is up to date";;
+                             1) ensure_dirs && gri;; *) exit ${rc};; esac;;
+      instupdate) ensure_dirs && gri;;
+    esac )
+}
+
+if [ "${1}" = "ls" ]; then show_list; exit 0; fi
+
+tools=("$@")
+if [ "${1}" = "all" ]; then
+  tools=()
+  for t in $(list_tools); do
+    if grep -q '^pre_install' "${WORKDIR}/tools/${t}.conf"; then echo "(skipping interactive tool '${t}')" >&2; continue; fi
+    tools+=("${t}")
+  done
 fi
-msg "using conf ${WORKDIR}/tools/${TOOL}.conf"
-. "${WORKDIR}/tools/${TOOL}.conf"
 
-GITURL="https://github.com/${GITACCOUNT}"
-code="$(httpcode "${GITURL}")"
-[ "${code}" = "200" ] || { printf "Error : '${GITURL}' HTTP error ${code}" >&2; exit 1; }
-GITURL="${GITURL}/${GITPACKAGE}"
-code="$(httpcode "${GITURL}")"
-[ "${code}" = "200" ] || { printf "Error : '${GITURL}' HTTP error ${code}" >&2; exit 1; }
-msg "Git URL : ${GITURL}"
-
-eval ZIPNAME=\"${ZIPNAME}\"
-eval ZIPDIRNAME=\"${ZIPNAME}\"
-eval INSTDIRNAME=\"${INSTDIRNAME}\"
-eval EXECBIN=\"${EXECBIN}\"
-
-msg "Mode '${MODE}'"
-case "${MODE}" in
-  infos)      tool_infos;;
-  latest)     LATEST="$(latest_release "${GITURL}")"; printf "Latest release for ${TOOLNAME} : ${LATEST}\n";;
-  check)      check_installed "${INSTALLDIR}/${INSTDIRNAME}" "${GITURL}";;
-  instupdate) instupdate "instupdate";;
-  install)    instupdate "install";;
-  update)     instupdate "update";;
-  remove)     uninstall;;
-  *)          printf "OOOOpsss... You shouldn't see this... :D\n"; exit 255;;
-esac
+status=0
+for t in "${tools[@]}"; do run_tool "${t}" || status=1; done
+case "${MODE}" in instupdate|install|update|reinstall) path_hint;; esac
+exit ${status}

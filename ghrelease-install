@@ -1,0 +1,320 @@
+#!/usr/bin/env bash
+# ghrelease-install : install/update/check/remove a program published as a
+# GitHub release asset (zip, tar.*, AppImage or a single binary).
+#
+# Layout (INSTALLDIR defaults to /opt/ghreleases):
+#   INSTALLDIR/NAME-<tag>/        extracted release
+#   INSTALLDIR/NAME               symlink to the active NAME-<tag>
+#   LINKDIR/<linkname>            symlink to the binary (optional, -l)
+#
+# Requires : curl, jq (+ unzip for .zip, tar for .tar.*)
+
+set -u -o pipefail
+
+PROG="$(basename "$0")"
+API="${GHRELEASE_API:-https://api.github.com}"
+INSTALLDIR="${GHRELEASE_DIR:-/opt/ghreleases}"
+VERSION="latest"
+ASSET_RE=""
+NAME=""
+BIN=""
+LINKNAME=""
+LINKDIR=""
+KEEP=2
+ACTION="install"     # install | check | latest | show | remove
+FORCE=false
+PRERELEASE=false
+STRIP=true
+QUIET=false
+
+usage() {
+  cat <<EOF
+Usage : ${PROG} [options] owner/repo
+  Install the latest (or a given) GitHub release of owner/repo.
+
+Options :
+  -v VERSION  release tag to install (default: latest)
+  -d DIR      install directory (default: \$GHRELEASE_DIR or ${INSTALLDIR})
+  -a REGEX    only consider assets whose name matches REGEX (case-insensitive ERE)
+              without it the Linux asset for this CPU is auto-selected
+  -n NAME     installation name (default: repository name)
+  -b BIN      executable inside the release (name, glob or relative path)
+  -B LINKNAME name of the symlink created in LINKDIR (default: basename of BIN)
+  -l LINKDIR  create a symlink to the executable in LINKDIR (e.g. ~/.local/bin)
+  -k N        keep N old versions besides the active one (default: ${KEEP})
+  -P          allow pre-releases when looking for the latest version
+  -S          do not strip a single top-level directory from the archive
+  -f          force (re)installation even if already up to date
+  -c          check only : exit 0 up to date, 1 outdated, 2 not installed
+  -L          print the latest release tag and exit
+  -s          show the release assets and the selected one, install nothing
+  -R          remove NAME (all its versions and links)
+  -q          quiet
+  -h          this help
+Environment : GITHUB_TOKEN (avoid API rate limits), GHRELEASE_DIR, GHRELEASE_API
+EOF
+}
+
+say()  { ${QUIET} || printf '%s\n' "$*" >&2; }
+warn() { printf '%s: warning: %s\n' "${PROG}" "$*" >&2; }
+die()  { printf '%s: error: %s\n' "${PROG}" "$*" >&2; exit "${2:-3}"; }
+
+TMP=""
+cleanup() { [ -n "${TMP}" ] && [ -d "${TMP}" ] && rm -rf -- "${TMP}"; return 0; }
+trap cleanup EXIT
+
+while getopts v:d:a:n:b:B:l:k:PSfcLsRqh opt; do case "${opt}" in
+  v) VERSION="${OPTARG}";;
+  d) INSTALLDIR="${OPTARG}";;
+  a) ASSET_RE="${OPTARG}";;
+  n) NAME="${OPTARG}";;
+  b) BIN="${OPTARG}";;
+  B) LINKNAME="${OPTARG}";;
+  l) LINKDIR="${OPTARG}";;
+  k) KEEP="${OPTARG}";;
+  P) PRERELEASE=true;;
+  S) STRIP=false;;
+  f) FORCE=true;;
+  c) ACTION="check";;
+  L) ACTION="latest";;
+  s) ACTION="show";;
+  R) ACTION="remove";;
+  q) QUIET=true;;
+  h) usage; exit 0;;
+  *) usage >&2; exit 3;;
+esac; done
+shift $((OPTIND - 1))
+
+REPO="${1:-}"
+case "${REPO}" in
+  */*) ;;
+  *) usage >&2; exit 3;;
+esac
+case "${REPO}" in *[!A-Za-z0-9._/-]*|*/*/*) die "invalid repository '${REPO}'";; esac
+case "${KEEP}" in ''|*[!0-9]*) die "-k expects a number";; esac
+[ -n "${NAME}" ] || NAME="${REPO#*/}"
+case "${NAME}" in */*|.*|"") die "invalid name '${NAME}'";; esac
+
+command -v curl >/dev/null || die "curl is required"
+command -v jq   >/dev/null || die "jq is required"
+
+# ---------------------------------------------------------------- helpers
+case "$(uname -m)" in
+  x86_64|amd64)  ARCH_RE='x86_64|amd64|x64|linux64|64bit'
+                 OTHER_RE='arm64|aarch64|armv[0-9]|armhf|riscv|i386|i686|ppc64|s390x';;
+  aarch64|arm64) ARCH_RE='arm64|aarch64'
+                 OTHER_RE='x86_64|amd64|x64|linux64|i386|i686|riscv|ppc64|s390x';;
+  *)             ARCH_RE="$(uname -m)"; OTHER_RE='';;
+esac
+
+curl_api() { # url outfile -> prints http code
+  local -a h=(-H "Accept: application/vnd.github+json")
+  [ -n "${GITHUB_TOKEN:-}" ] && h+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  curl -sSL "${h[@]}" -o "${2}" -w '%{http_code}' "${1}"
+}
+
+# Sets REL (json of one release) from VERSION
+fetch_release() {
+  local code list="${TMP}/list.json"
+  REL="${TMP}/release.json"
+  first_release() {
+    code="$(curl_api "${API}/repos/${REPO}/releases?per_page=15" "${list}")" || die "cannot reach ${API}"
+    [ "${code}" = "200" ] || die "GitHub API HTTP ${code} for ${REPO} releases"
+    jq -e --argjson pre "${PRERELEASE}" \
+      '[.[] | select(.draft|not) | select($pre or (.prerelease|not))] | .[0]' "${list}" >"${REL}" 2>/dev/null \
+      || { # only pre-releases published (e.g. a rolling "latest" tag)
+           jq -e '[.[] | select(.draft|not)] | .[0]' "${list}" >"${REL}" 2>/dev/null \
+             || die "no release found for ${REPO}"; }
+  }
+  if [ "${VERSION}" = "latest" ]; then
+    if ${PRERELEASE}; then
+      first_release
+    else
+      code="$(curl_api "${API}/repos/${REPO}/releases/latest" "${REL}")" || die "cannot reach ${API}"
+      case "${code}" in
+        200) ;;
+        404) first_release;;
+        *)   die "GitHub API HTTP ${code} for ${REPO}";;
+      esac
+    fi
+  else
+    code="$(curl_api "${API}/repos/${REPO}/releases/tags/${VERSION}" "${REL}")" || die "cannot reach ${API}"
+    if [ "${code}" = "404" ] && [ "${VERSION#v}" = "${VERSION}" ]; then
+      code="$(curl_api "${API}/repos/${REPO}/releases/tags/v${VERSION}" "${REL}")" || die "cannot reach ${API}"
+    fi
+    [ "${code}" = "200" ] || die "release '${VERSION}' not found for ${REPO} (HTTP ${code})"
+  fi
+  TAG="$(jq -r '.tag_name' "${REL}")"
+  STAMP="${TAG} $(jq -r '.published_at // ""' "${REL}")"
+  case "${TAG}" in ""|null|*/*|.*) die "unexpected tag '${TAG}'";; esac
+}
+
+# Lists candidate assets as TSV: score, name, url, digest (best first)
+candidates() {
+  jq -r --arg re "${ASSET_RE}" --arg other "${OTHER_RE}" --arg arch "${ARCH_RE}" '
+    def excluded:
+      test("\\.(sha256|sha512|sha256sum|md5|sig|asc|txt|json|ya?ml|blockmap|pem|sbom|spdx|exe|msi|dmg|pkg|deb|rpm|apk|ipa)$"; "i")
+      or test("windows|darwin|macos|osx|android|win32|win64"; "i")
+      or test("(^|[-_. ])(win|mac|ios)([-_. ]|$)"; "i");
+    [ .assets[]
+      | select(.name | excluded | not)
+      | select($re == "" or (.name | test($re; "i")))
+      | select($other == "" or (.name | test($other; "i") | not))
+      | . + { score:
+          ( (if .name | test("linux"; "i") then 100 else 0 end)
+          + (if .name | test($arch; "i") then 50 else 0 end)
+          + (if .name | test("\\.(zip|tar\\.(gz|xz|bz2)|tgz|txz|tbz2)$"; "i") then 20
+             elif .name | test("\\.AppImage$"; "i") then 15 else 0 end) ) } ]
+    | sort_by(-.score)
+    | .[] | [.score, .name, .browser_download_url, (.digest // "")] | @tsv' "${REL}"
+}
+
+installed_stamp() { cat "${INSTALLDIR}/${NAME}/.ghrelease_version" 2>/dev/null; }
+
+# ----------------------------------------------------------------- actions
+do_remove() {
+  local d found=false l
+  for d in "${INSTALLDIR}/${NAME}"-*; do
+    [ -f "${d}/.ghrelease_version" ] || continue
+    found=true; say "Removing ${d}"; rm -rf -- "${d}"
+  done
+  if [ -L "${INSTALLDIR}/${NAME}" ]; then found=true; rm -f -- "${INSTALLDIR}/${NAME}"; fi
+  if [ -n "${LINKDIR}" ] && [ -d "${LINKDIR}" ]; then
+    for l in "${LINKDIR}"/*; do
+      [ -L "${l}" ] || continue
+      case "$(readlink "${l}")" in "${INSTALLDIR}/${NAME}/"*) say "Removing link ${l}"; rm -f -- "${l}";; esac
+    done
+  fi
+  ${found} || { say "${NAME} is not installed in ${INSTALLDIR}"; return 2; }
+}
+
+find_bin() { # target dir -> prints path relative to target
+  local t="${1}" f
+  if [ -n "${BIN}" ]; then
+    case "${BIN}" in
+      *[\*\?\[]*) f="$(cd "${t}" && find . -type f -name "${BIN#./}" 2>/dev/null | head -n1)";;
+      *)          if [ -e "${t}/${BIN}" ]; then f="./${BIN}"
+                  else f="$(cd "${t}" && find . -type f -iname "$(basename "${BIN}")" 2>/dev/null | head -n1)"; fi;;
+    esac
+    [ -n "${f}" ] && printf '%s\n' "${f#./}"
+    return 0
+  fi
+  # no BIN given : accept a lone file at the top level
+  local files; files="$(find "${t}" -maxdepth 1 -type f ! -name '.*' | head -n2)"
+  [ "$(printf '%s\n' "${files}" | grep -c .)" = "1" ] && printf '%s\n' "$(basename "${files}")"
+  return 0
+}
+
+extract() { # archive destdir
+  case "${1}" in
+    *.zip|*.ZIP) command -v unzip >/dev/null || die "unzip is required"; unzip -q "${1}" -d "${2}";;
+    *.tar|*.tar.gz|*.tgz|*.tar.bz2|*.tbz2|*.tar.xz|*.txz) tar -xf "${1}" -C "${2}";;
+    *) cp -- "${1}" "${2}/";;
+  esac
+}
+
+do_install() {
+  local line aname aurl adigest
+  line="$(candidates | head -n1)"
+  [ -n "${line}" ] || die "no matching asset in ${REPO} ${TAG} (use -s to list assets, -a to select one)"
+  IFS=$'\t' read -r _ aname aurl adigest <<<"${line}"
+  say "${NAME}: ${TAG} -> asset '${aname}'"
+
+  if [ "$(installed_stamp)" = "${STAMP}" ] && ! ${FORCE}; then
+    say "${NAME} ${TAG} already installed and up to date"
+    return 0
+  fi
+
+  install -d -m755 "${INSTALLDIR}" 2>/dev/null || die "cannot create ${INSTALLDIR} (permissions?)"
+  [ -w "${INSTALLDIR}" ] || die "${INSTALLDIR} is not writable"
+
+  local dl="${TMP}/dl" stage; install -d "${dl}"
+  stage="$(mktemp -d "${INSTALLDIR}/.stage.XXXXXX")" || die "cannot create staging dir"
+  trap 'rm -rf -- "${stage:-}"; cleanup' EXIT
+
+  local file="${dl}/${aname//\//_}"
+  local -a cq=(-fL --retry 3 -o "${file}")
+  ${QUIET} && cq+=(-sS) || cq+=(--progress-bar)
+  [ -n "${GITHUB_TOKEN:-}" ] && case "${aurl}" in "${API}"*) cq+=(-H "Authorization: Bearer ${GITHUB_TOKEN}");; esac
+  curl "${cq[@]}" "${aurl}" || die "download failed: ${aurl}"
+
+  case "${adigest}" in
+    sha256:*) command -v sha256sum >/dev/null && {
+                [ "$(sha256sum "${file}" | cut -d' ' -f1)" = "${adigest#sha256:}" ] \
+                  || die "sha256 mismatch for ${aname}"; say "sha256 OK"; };;
+  esac
+
+  extract "${file}" "${stage}" || die "extraction failed"
+  # a lone top-level directory is stripped (unless -S)
+  local root="${stage}" n
+  if ${STRIP}; then
+    n="$(find "${stage}" -mindepth 1 -maxdepth 1 | wc -l)"
+    if [ "${n}" = "1" ]; then
+      local only; only="$(find "${stage}" -mindepth 1 -maxdepth 1)"
+      [ -d "${only}" ] && root="${only}"
+    fi
+  fi
+  printf '%s\n' "${STAMP}" >"${root}/.ghrelease_version"
+  chmod -R u+rwX,go+rX "${root}"
+
+  local target="${INSTALLDIR}/${NAME}-${TAG}"
+  [ -e "${target}" ] && { rm -rf -- "${target}.old"; mv -- "${target}" "${target}.old"; }
+  mv -- "${root}" "${target}" || die "cannot move to ${target}"
+  rm -rf -- "${target}.old"
+  [ "${root}" = "${stage}" ] || rm -rf -- "${stage}"
+
+  # active version symlink (atomic)
+  ln -sfn "${NAME}-${TAG}" "${INSTALLDIR}/.${NAME}.new" && mv -T -- "${INSTALLDIR}/.${NAME}.new" "${INSTALLDIR}/${NAME}" \
+    || die "cannot update symlink ${INSTALLDIR}/${NAME}"
+
+  # executable + link
+  local rel; rel="$(find_bin "${target}")"
+  if [ -n "${rel}" ]; then
+    chmod 755 "${target}/${rel}"
+    if [ -n "${LINKDIR}" ]; then
+      local ln="${LINKNAME}"
+      if [ -z "${ln}" ]; then
+        case "${BIN}" in ""|*[\*\?\[]*) ln="$(printf '%s' "${NAME}" | tr 'A-Z' 'a-z')";; *) ln="$(basename "${BIN}")";; esac
+      fi
+      install -d -m755 "${LINKDIR}" 2>/dev/null || warn "cannot create ${LINKDIR}"
+      if ln -sfn "${INSTALLDIR}/${NAME}/${rel}" "${LINKDIR}/${ln}" 2>/dev/null; then
+        say "Link ${LINKDIR}/${ln} -> ${INSTALLDIR}/${NAME}/${rel}"
+      else
+        warn "cannot create link in ${LINKDIR}"
+      fi
+    fi
+  elif [ -n "${BIN}" ]; then
+    warn "executable '${BIN}' not found in ${target} (the upstream layout may have changed)"
+  fi
+
+  # prune old versions
+  local d i=0
+  while IFS= read -r d; do
+    [ -f "${d}/.ghrelease_version" ] || continue
+    [ "${d}" = "${target}" ] && continue
+    i=$((i + 1))
+    [ "${i}" -gt "${KEEP}" ] && { say "Pruning old version $(basename "${d}")"; rm -rf -- "${d}"; }
+  done < <(find "${INSTALLDIR}" -mindepth 1 -maxdepth 1 -type d -name "${NAME}-*" -printf '%T@ %p\n' | sort -rn | cut -d' ' -f2-)
+  say "${NAME} ${TAG} installed in ${target}"
+}
+
+# -------------------------------------------------------------------- main
+if [ "${ACTION}" = "remove" ]; then do_remove; exit $?; fi
+
+TMP="$(mktemp -d)" || die "cannot create temp dir"
+fetch_release
+
+case "${ACTION}" in
+  latest) printf '%s\n' "${TAG}";;
+  show)   printf 'Release %s (%s)\n' "${TAG}" "$(jq -r '.published_at // "?"' "${REL}")"
+          best="$(candidates | head -n1 | cut -f2)"
+          jq -r '.assets[].name' "${REL}" | while IFS= read -r a; do
+            if [ "${a}" = "${best}" ]; then printf '  * %s   <- selected\n' "${a}"; else printf '    %s\n' "${a}"; fi
+          done
+          [ -n "${best}" ] || { echo "  (no matching asset)"; exit 1; };;
+  check)  cur="$(installed_stamp)"
+          if [ -z "${cur}" ]; then say "${NAME} is not installed (latest: ${TAG})"; exit 2
+          elif [ "${cur}" = "${STAMP}" ]; then say "${NAME} is up to date (${TAG})"; exit 0
+          else say "${NAME} is outdated: installed '${cur%% *}', latest '${TAG}'"; exit 1; fi;;
+  install) do_install;;
+esac

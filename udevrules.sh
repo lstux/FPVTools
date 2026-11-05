@@ -30,11 +30,13 @@ udevrule() {
 }
 
 if [ -e /etc/debian_version ]; then
-  BF_GROUPS="${BF_GORUPS} plugdev"
+  BF_GROUPS="${BF_GROUPS} plugdev"
   udevrule ubuntu
-elif [ -e /etc/fedora_version ]; then
+elif [ -e /etc/fedora-release ]; then
   udevrule fedora
 fi
+
+[ -e "/etc/udev/rules.d/${BF_UDEVRULE}" ] && sudo udevadm control --reload-rules && sudo udevadm trigger
 
 for group in ${BF_GROUPS}; do
   echo " $(id -Gn "${BF_USER}") " | grep -q " ${group} " && continue
