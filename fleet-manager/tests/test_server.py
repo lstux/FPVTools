@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from fakefc import DIFF_ALL, FakeFC, bluejay_esc
+from fleetmanager.simulator import DIFF_ALL, FakeFC, bluejay_esc
 from fleetmanager.db import Fleet
 from fleetmanager.detect import DetectError, detect
 from fleetmanager.server import create_app

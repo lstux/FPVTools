@@ -53,7 +53,7 @@ def _looks_like(kind: str, data: bytes) -> bool:
     return data[:4] == b"RIFF" and data[8:12] == b"WEBP"
 
 
-def create_app(fleet: Fleet, photos_dir: Path, scanner: Scanner = scan_port) -> FastAPI:
+def create_app(fleet: Fleet, photos_dir: Path, scanner: Scanner = scan_port, simulated: bool = False) -> FastAPI:
     photos_dir = Path(photos_dir)
     photos_dir.mkdir(parents=True, exist_ok=True)
     scan_lock = threading.Lock()
@@ -76,7 +76,13 @@ def create_app(fleet: Fleet, photos_dir: Path, scanner: Scanner = scan_port) -> 
 
     @app.get("/api/ports")
     def ports() -> Any:
+        if simulated:
+            return [{"device": "sim", "description": "simulated flight controllers", "vid": None, "pid": None}]
         return candidate_ports()
+
+    @app.get("/api/info")
+    def app_info() -> Dict[str, Any]:
+        return {"version": __version__, "simulated": simulated}
 
     @app.post("/api/scan")
     def scan(body: ScanIn = ScanIn()) -> Dict[str, Any]:

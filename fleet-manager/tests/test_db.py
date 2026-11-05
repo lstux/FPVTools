@@ -1,6 +1,6 @@
 import pytest
 
-from fakefc import DIFF_ALL, FakeFC
+from fleetmanager.simulator import DIFF_ALL, FakeFC
 from fleetmanager.db import BASE_COMPONENTS, Fleet, hints_from_info, normalize_diff
 from fleetmanager.detect import detect
 

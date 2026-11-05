@@ -1,6 +1,6 @@
 import pytest
 
-from fakefc import FakeFC, am32_esc, bluejay_esc
+from fleetmanager.simulator import FakeFC, am32_esc, bluejay_esc
 from fleetmanager.db import Fleet
 from fleetmanager.detect import detect
 from fleetmanager.esc import (

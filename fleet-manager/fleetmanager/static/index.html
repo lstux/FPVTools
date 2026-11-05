@@ -3,25 +3,54 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
   <title>Fleet manager</title>
+  <link rel="preload" href="/static/fonts/chakra-petch-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <header>
-    <a class="brand" href="#/">Fleet manager</a>
-    <div class="scan">
-      <select id="port" title="Serial port of the flight controller"></select>
-      <label class="check" title="Read settings with the CLI (the FC reboots afterwards)">
-        <input type="checkbox" id="cli" checked> full config
+  <header class="bench-bar">
+    <a class="wordmark" href="#/" aria-label="Fleet manager, all drones">
+      <svg class="wordmark-quad" viewBox="0 0 40 40" aria-hidden="true">
+        <g fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M11 11 L29 29 M29 11 L11 29"/>
+          <circle cx="9" cy="9" r="6.5"/><circle cx="31" cy="9" r="6.5"/>
+          <circle cx="9" cy="31" r="6.5"/><circle cx="31" cy="31" r="6.5"/>
+        </g>
+        <rect x="15.5" y="15.5" width="9" height="9" fill="currentColor"/>
+      </svg>
+      <span>fleet<b>manager</b></span>
+    </a>
+
+    <div class="link" role="group" aria-label="Flight controller connection">
+      <label class="connector">
+        <span class="silk">J1 usb</span>
+        <select id="port" title="Serial port of the flight controller"></select>
       </label>
-      <label class="check" title="Needs the battery connected. Take the propellers off.">
-        <input type="checkbox" id="esc"> read ESCs (battery on, props off)
-      </label>
-      <button id="scan-btn" class="primary">Detect drone</button>
+
+      <div class="dips" role="group" aria-label="What to read">
+        <label class="dip" title="Read the settings with the CLI and save a configuration snapshot. The FC reboots afterwards.">
+          <input type="checkbox" id="cli" checked>
+          <span class="dip-switch" aria-hidden="true"></span>
+          <span class="dip-text">Config<small>FC reboots</small></span>
+        </label>
+        <label class="dip" title="Read the ESC firmware through the 4-way interface. Needs the battery: take the propellers off.">
+          <input type="checkbox" id="esc">
+          <span class="dip-switch" aria-hidden="true"></span>
+          <span class="dip-text">ESCs<small>battery on, props off</small></span>
+        </label>
+      </div>
+
+      <button id="scan-btn" class="pad-button" type="button">
+        <span class="led" data-state="idle" aria-hidden="true"></span>
+        <span class="pad-label">Detect drone</span>
+      </button>
     </div>
   </header>
-  <div id="toast" hidden></div>
-  <main id="main"></main>
+
+  <main id="main" tabindex="-1"></main>
+
+  <div id="osd" role="status" aria-live="polite" hidden></div>
   <script src="/static/app.js"></script>
 </body>
 </html>

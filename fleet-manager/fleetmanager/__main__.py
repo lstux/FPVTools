@@ -36,6 +36,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     common(s)
     s.add_argument("--host", default="127.0.0.1", help="listen address (default: %(default)s)")
     s.add_argument("--http-port", type=int, default=8090, help="listen port (default: %(default)s)")
+    s.add_argument(
+        "--simulate",
+        action="store_true",
+        help="no hardware: 'Detect drone' plugs simulated FCs in (uses a throw-away catalogue "
+        "unless --data-dir is given)",
+    )
 
     c = sub.add_parser("scan", help="read the connected flight controller and register it")
     common(c)
@@ -52,6 +58,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     from .db import open_fleet
 
+    if args.cmd == "serve" and args.simulate and args.data_dir == default_data_dir():
+        import tempfile
+
+        args.data_dir = Path(tempfile.mkdtemp(prefix="fleetmanager-sim-"))
+        print("simulation: throw-away catalogue in %s" % args.data_dir)
     fleet = open_fleet(args.data_dir)
 
     if args.cmd == "serve":
@@ -59,7 +70,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
         from .server import create_app
 
-        uvicorn.run(create_app(fleet, args.data_dir / "photos"), host=args.host, port=args.http_port)
+        if args.simulate:
+            from .simulator import DemoScanner
+
+            app = create_app(fleet, args.data_dir / "photos", DemoScanner(), simulated=True)
+        else:
+            app = create_app(fleet, args.data_dir / "photos")
+        uvicorn.run(app, host=args.host, port=args.http_port)
         return 0
 
     from .detect import DetectError, scan_port

@@ -16,6 +16,7 @@ cd fleet-manager
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e '.[test]'
 fleetmanager serve                # web interface on http://127.0.0.1:8090
+fleetmanager serve --simulate     # no hardware: "Detect drone" plugs three simulated drones in
 fleetmanager scan                 # same detection from the terminal, no browser
 fleetmanager scan --no-cli        # MSP only: no config snapshot and no FC reboot
 fleetmanager scan --esc           # also read the ESCs: battery connected, PROPELLERS OFF
@@ -69,7 +70,9 @@ fleetmanager/detect.py    port discovery, MSP identity, CLI session
 fleetmanager/db.py        SQLite schema, skeleton, hints, snapshots with de-duplication
 fleetmanager/diffview.py  side-by-side diff for the UI
 fleetmanager/server.py    FastAPI JSON API + static UI (fleetmanager/static/)
-tests/                    pytest, with a fake FC (tests/fakefc.py)
+fleetmanager/esc.py       ESC 4-way interface (read only)
+fleetmanager/simulator.py simulated FC (MSP, CLI, 4-way), used by the tests and --simulate
+tests/                    pytest
 ```
 
 Tests: `pytest` (no hardware needed).
@@ -77,3 +80,8 @@ Tests: `pytest` (no hardware needed).
 ## Roadmap
 
 ArduPilot (MAVLink); BLHeli_32 identification if a reliable marker turns up.
+
+## Credits
+
+Fonts bundled in `fleetmanager/static/fonts/` (the UI works offline): Chakra Petch and JetBrains Mono, both under the
+SIL Open Font License 1.1 (licence files next to them).

@@ -1,4 +1,7 @@
-"""A fake flight controller behind a pyserial-like object: MSP v1 + a tiny text CLI."""
+"""A simulated flight controller (MSP v1, text CLI, ESC 4-way interface) behind a pyserial-like object.
+
+Used by the tests and by ``fleetmanager serve --simulate`` to try the app without hardware.
+"""
 
 import struct
 import time
@@ -238,3 +241,96 @@ class FakeFC:
                 self.left_4way = True
             else:
                 self._fourway_reply(cmd, address, b"", 0x02)
+
+
+# --------------------------------------------------------------------- demo fleet
+
+DEMO_DIFF = """# diff all
+
+# version
+# {fw} / {board} ({bid}) {ver} {date} / 10:00:00 (abcdef0) MSP API: 1.46
+
+# start the command batch
+batch start
+
+board_name {board}
+
+# feature
+feature GPS
+feature TELEMETRY
+
+# serial
+serial 20 1 115200 57600 0 115200
+serial 1 64 115200 57600 0 115200
+serial 2 2 115200 57600 0 115200
+
+# master
+set gyro_lpf1_static_hz = {lpf}
+set dyn_notch_count = {notch}
+set motor_pwm_protocol = DSHOT{dshot}
+set dshot_bidir = ON
+set motor_poles = 14
+set vbat_min_cell_voltage = {vmin}
+set gps_provider = UBLOX
+set gps_sbas_mode = EGNOS
+set osd_displayport_device = MSP
+set name = {name}
+
+profile 0
+set p_pitch = {p}
+set i_pitch = 80
+set d_pitch = {d}
+
+rateprofile 0
+set roll_srate = 70
+set pitch_srate = 70
+
+batch end
+"""
+
+DEMO_FLEET = [
+    dict(name="Chimera7", fw=b"BTFL", ver=(4, 5, 1), bid=b"S7X4", board="SPEEDYBEEF7V3", uid=bytes(range(10, 22)),
+         escs=lambda rev: [bluejay_esc(sub=21 if rev < 3 else 22) for _ in range(4)]),
+    dict(name="Lumenier5", fw=b"INAV", ver=(7, 1, 2), bid=b"MKF4", board="MATEKF405", uid=bytes(range(40, 52)),
+         escs=lambda rev: [am32_esc(main=2, sub=16) for _ in range(4)]),
+    dict(name="Whoop65", fw=b"BTFL", ver=(4, 4, 3), bid=b"S411", board="CRAZYBEEF4SX1280", uid=bytes(range(70, 82)),
+         escs=lambda rev: [bluejay_esc(sub=19) for _ in range(4)]),
+]
+
+
+def demo_fc(profile, revision=0):
+    """A simulated FC for one of the demo drones; ``revision`` changes its tune over time."""
+    fw_name = "Betaflight" if profile["fw"] == b"BTFL" else "INAV"
+    ver = "%d.%d.%d" % profile["ver"]
+    diff = DEMO_DIFF.format(
+        fw=fw_name, board=profile["board"], bid=profile["bid"].decode(), ver=ver, date="Mar 12 2025",
+        name=profile["name"], lpf=250 - 25 * min(revision, 3), notch=1 + min(revision, 2) // 2,
+        dshot=600 if revision % 4 < 2 else 300, vmin=330 + 5 * (revision // 2 % 2),
+        p=47 + revision, d=38 + 2 * (revision // 2),
+    )
+    fc = FakeFC(diff=diff, uid=profile["uid"], escs=profile["escs"](revision))
+    name = profile["board"].encode()
+    fc.replies.update({
+        MSP_FC_VARIANT: profile["fw"],
+        MSP_FC_VERSION: bytes(profile["ver"]),
+        MSP_BOARD_INFO: profile["bid"] + struct.pack("<H", 0) + bytes([0, 0, len(name)]) + name,
+        MSP_NAME: profile["name"].encode(),
+    })
+    return fc
+
+
+class DemoScanner:
+    """Each call plugs the next demo drone in; every drone's tune evolves a little between visits."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def __call__(self, port, cli, esc):
+        from .detect import detect
+
+        profile = DEMO_FLEET[self.calls % len(DEMO_FLEET)]
+        revision = self.calls // len(DEMO_FLEET)
+        self.calls += 1
+        det = detect(demo_fc(profile, revision), with_cli=cli, with_esc=esc, timeout=0.3, cli_timeout=1.0)
+        det.info["port"] = "simulated"
+        return det

@@ -167,7 +167,9 @@ class Fleet:
     def list_drones(self) -> List[Dict[str, Any]]:
         with self._lock:
             rows = self._db.execute(
-                "SELECT d.*, (SELECT COUNT(*) FROM snapshot s WHERE s.drone_id = d.id) AS snapshot_count "
+                "SELECT d.*, (SELECT COUNT(*) FROM snapshot s WHERE s.drone_id = d.id) AS snapshot_count, "
+                "(SELECT COUNT(*) FROM component c WHERE c.drone_id = d.id AND c.model = '') AS todo_count, "
+                "(SELECT COUNT(*) FROM component c WHERE c.drone_id = d.id) AS component_count "
                 "FROM drone d ORDER BY d.name COLLATE NOCASE"
             ).fetchall()
         return [_row(r) for r in rows]

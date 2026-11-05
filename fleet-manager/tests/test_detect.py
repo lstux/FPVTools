@@ -1,6 +1,6 @@
 import pytest
 
-from fakefc import DIFF_ALL, FakeFC
+from fleetmanager.simulator import DIFF_ALL, FakeFC
 from fleetmanager.detect import DetectError, detect, parse_get, parse_status
 
 
