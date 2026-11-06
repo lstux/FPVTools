@@ -3,16 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FPV · liens utiles</title>
-<meta name="description" content="Tous les liens utiles pour configurer un drone FPV : radio ExpressLRS et EdgeTX, Betaflight, INAV, ArduPilot, ESC, outils et documentation.">
+<title>FPV · terrain</title>
+<meta name="description" content="Météo et restrictions de vol drone à l'endroit choisi : carte, vent, pluie, soleil, altitude, activité géomagnétique.">
 <meta name="theme-color" content="#f7f5ff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0f0c22" media="(prefers-color-scheme: dark)">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235b4bff'/%3E%3Cstop offset='1' stop-color='%23e63b97'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url%28%23g%29'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M22 22l20 20M42 22L22 42'/%3E%3Ccircle cx='19' cy='19' r='6'/%3E%3Ccircle cx='45' cy='19' r='6'/%3E%3Ccircle cx='19' cy='45' r='6'/%3E%3Ccircle cx='45' cy='45' r='6'/%3E%3C/g%3E%3Crect x='27' y='27' width='10' height='10' rx='3' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%2064%2064%27%3E%3Cdefs%3E%3ClinearGradient%20id%3D%27g%27%20x1%3D%270%27%20y1%3D%270%27%20x2%3D%271%27%20y2%3D%271%27%3E%3Cstop%20offset%3D%270%27%20stop-color%3D%27%235b4bff%27/%3E%3Cstop%20offset%3D%271%27%20stop-color%3D%27%23e63b97%27/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%2764%27%20height%3D%2764%27%20rx%3D%2716%27%20fill%3D%27url%28%23g%29%27/%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23fff%27%20stroke-width%3D%274%27%20stroke-linecap%3D%27round%27%3E%3Cpath%20d%3D%27M22%2022l20%2020M42%2022L22%2042%27/%3E%3Ccircle%20cx%3D%2719%27%20cy%3D%2719%27%20r%3D%276%27/%3E%3Ccircle%20cx%3D%2745%27%20cy%3D%2719%27%20r%3D%276%27/%3E%3Ccircle%20cx%3D%2719%27%20cy%3D%2745%27%20r%3D%276%27/%3E%3Ccircle%20cx%3D%2745%27%20cy%3D%2745%27%20r%3D%276%27/%3E%3C/g%3E%3Crect%20x%3D%2727%27%20y%3D%2727%27%20width%3D%2710%27%20height%3D%2710%27%20rx%3D%273%27%20fill%3D%27%23fff%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <!--
-  Page autonome : tout le style et le script sont dans ce fichier, rien n'est chargé depuis l'extérieur.
-  Les variables de couleur et de rayon (--bg, --card, --ac, --grad…) sont celles de WebApps/code/common.css :
-  pour l'intégrer à WebApps, supprimer le bloc « Variables » ci-dessous et ajouter <link rel="stylesheet" href="common.css">.
-  Pensée pour les petits écrans (à partir de 240 px de large, écran tactile de kiosque) comme pour les grands.
+  Page principale : carte et informations sur le terrain (météo, restrictions de vol, soleil, altitude, Kp).
+  Les liens utiles sont dans liens.html. Seule bibliothèque : Leaflet (vendor/leaflet, licence BSD-2).
+  Appels faits depuis le navigateur, sans clé : Open-Meteo (météo, recherche de lieu), IGN Géoplateforme (cartes,
+  restrictions de vol, altitude), NOAA SWPC (indice Kp).
+  Adresse : ?lat=47.27&lon=-2.21 ou ?q=Saint-Nazaire (utile pour un kiosque sans GPS).
+  Variables de couleur : celles de WebApps/code/common.css.
 -->
 <style>
 /* Variables (identiques à common.css) ----------------------------------- */
@@ -20,6 +23,7 @@
   color-scheme:light;
   --bg:#f7f5ff; --card:#ffffff; --card2:#efecfc; --fg:#1b1736; --mut:#6b6690; --mut2:#b3aed3; --line:#e5e1f6;
   --ac:#5b4bff; --ac2:#e63b97; --ac3:#ffb020; --on-ac:#ffffff;
+  --ok:#16b86e; --warn:#f2a20c; --err:#e5484d;
   --glass:#f7f5ffd9; --shadow:0 1px 2px #2b1f8a14,0 8px 24px #2b1f8a14;
   --ac-soft:color-mix(in srgb,var(--ac) 14%,var(--card));
   --hover:color-mix(in srgb,var(--fg) 7%,transparent);
@@ -33,14 +37,14 @@
   :root:not([data-theme="light"]){
     color-scheme:dark;
     --bg:#0f0c22; --card:#1a1633; --card2:#262048; --fg:#f2efff; --mut:#a29ccb; --mut2:#544d78; --line:#2f2858;
-    --ac:#8f7dff; --ac2:#ff6fb5; --ac3:#ffc247; --on-ac:#150b33;
+    --ac:#8f7dff; --ac2:#ff6fb5; --ac3:#ffc247; --on-ac:#150b33; --ok:#3be28e; --warn:#ffc247; --err:#ff7b80;
     --glass:#0f0c22d9; --shadow:0 1px 2px #0007,0 10px 28px #0005;
   }
 }
 :root[data-theme="dark"]{
   color-scheme:dark;
   --bg:#0f0c22; --card:#1a1633; --card2:#262048; --fg:#f2efff; --mut:#a29ccb; --mut2:#544d78; --line:#2f2858;
-  --ac:#8f7dff; --ac2:#ff6fb5; --ac3:#ffc247; --on-ac:#150b33;
+  --ac:#8f7dff; --ac2:#ff6fb5; --ac3:#ffc247; --on-ac:#150b33; --ok:#3be28e; --warn:#ffc247; --err:#ff7b80;
   --glass:#0f0c22d9; --shadow:0 1px 2px #0007,0 10px 28px #0005;
 }
 
@@ -55,265 +59,614 @@ body{
     var(--bg);
   background-attachment:fixed;
 }
-.wrap{max-width:74rem; margin:0 auto; padding:0 clamp(.6rem,3vw,1.6rem) 3rem}
+.wrap{max-width:74rem; margin:0 auto; padding:.8rem clamp(.6rem,3vw,1.6rem) 3rem}
+[hidden]{display:none!important}
+h2{margin:0 0 .6rem; font-size:1.05rem; font-weight:800}
 
 /* Barre du haut ------------------------------------------------------------ */
-.topbar{position:sticky; top:0; z-index:5; background:var(--glass); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border-bottom:1px solid var(--line)}
+.topbar{position:sticky; top:0; z-index:1100; background:var(--glass); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border-bottom:1px solid var(--line)}
 .topbar-in{max-width:74rem; margin:0 auto; padding:.6rem clamp(.6rem,3vw,1.6rem); display:flex; align-items:center; gap:.6rem}
 .brand{flex:1; min-width:0; margin:0; font-size:1.2rem; font-weight:800; letter-spacing:-.01em; line-height:1.15}
 .brand>span:first-child{background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent}
 .subtitle{display:block; color:var(--mut); font-size:.78rem; font-weight:600; letter-spacing:0}
+.pill{flex:none; display:inline-flex; align-items:center; min-height:2.75rem; padding:0 1rem; border-radius:999px; background:var(--card2); color:var(--fg); text-decoration:none; font-weight:800; font-size:.9rem}
+.pill:hover{background:var(--hover)}
 .iconbtn{flex:none; width:2.75rem; height:2.75rem; border:0; border-radius:50%; background:var(--card2); color:var(--fg); font:inherit; font-size:1.1rem; cursor:pointer}
 .iconbtn:hover{background:var(--hover)}
 
-/* Navigation par pastilles -------------------------------------------------- */
-.chips{display:flex; flex-wrap:wrap; gap:.4rem; padding:.9rem 0 .3rem}
-.chips a{display:inline-block; padding:.5rem .85rem; border-radius:999px; background:var(--card); border:1px solid var(--line); color:var(--fg); text-decoration:none; font-size:.86rem; font-weight:700}
-.chips a:hover{border-color:var(--ac); background:var(--ac-soft)}
-.intro{margin:.2rem 0 .4rem; color:var(--mut); font-size:.92rem}
+/* Cartes et boutons ---------------------------------------------------------- */
+.card{background:var(--card); border:1px solid var(--line); border-radius:var(--r-l); box-shadow:var(--shadow); padding:.9rem 1rem; margin:0 0 .8rem}
+.btn{min-height:2.75rem; padding:0 1rem; border:1px solid var(--line); border-radius:var(--r-m); background:var(--card2); color:var(--fg); font:inherit; font-weight:700; cursor:pointer}
+.btn:hover{background:var(--hover)}
+.btn.primary{background:var(--grad); color:var(--on-ac); border-color:transparent}
+.field{flex:1 1 12rem; min-width:0; min-height:2.75rem; padding:0 .9rem; border:1px solid var(--line); border-radius:var(--r-m); background:var(--card2); color:var(--fg); font:inherit}
+.lk:focus-visible,.btn:focus-visible,.field:focus-visible,.pill:focus-visible,.iconbtn:focus-visible,summary:focus-visible{outline:3px solid var(--ac); outline-offset:2px}
 
-/* Sections repliables ------------------------------------------------------- */
-details.cat{margin:.8rem 0; background:var(--card); border:1px solid var(--line); border-radius:var(--r-l); box-shadow:var(--shadow); scroll-margin-top:4.5rem}
-details.cat>summary{display:flex; align-items:center; gap:.6rem; padding:.85rem 1rem; min-height:3rem; cursor:pointer; list-style:none; font-weight:800; font-size:1.05rem}
-details.cat>summary::-webkit-details-marker{display:none}
-details.cat>summary::after{content:"›"; margin-left:auto; color:var(--mut); font-size:1.5rem; line-height:1; transition:transform .2s}
-details.cat[open]>summary::after{transform:rotate(90deg)}
-.ic{flex:none; width:1.8rem; text-align:center}
-.nm{min-width:0}
-.n{flex:none; padding:.05rem .5rem; border-radius:999px; background:var(--ac-soft); color:var(--ac); font-size:.78rem; font-weight:800}
+/* Recherche ------------------------------------------------------------------ */
+#searchForm{display:flex; flex-wrap:wrap; gap:.5rem}
+.results{list-style:none; margin:.6rem 0 0; padding:0; display:grid; gap:.4rem}
+.results button{width:100%; text-align:left; min-height:2.75rem; padding:.5rem .8rem; border:1px solid var(--line); border-radius:var(--r-m); background:var(--card2); color:var(--fg); font:inherit; cursor:pointer}
+.results button:hover{border-color:var(--ac); background:var(--ac-soft)}
+.results small{display:block; color:var(--mut)}
+.status{margin:.6rem 0 0; color:var(--mut); font-size:.9rem; min-height:1.3em}
+.status.warn{color:var(--warn); font-weight:700}
+.status:empty{display:none}
 
-/* Liens ---------------------------------------------------------------------- */
-.links{list-style:none; margin:0; padding:0 .8rem .9rem; display:grid; gap:.5rem; grid-template-columns:repeat(auto-fill,minmax(min(100%,16rem),1fr))}
-.lk{display:block; height:100%; min-height:2.75rem; padding:.65rem .8rem; border-radius:var(--r-m); background:var(--card2); border:1px solid transparent; color:var(--fg); text-decoration:none}
-.lk:hover{border-color:var(--ac); background:var(--ac-soft)}
-.lk:focus-visible,.chips a:focus-visible,summary:focus-visible,.iconbtn:focus-visible{outline:3px solid var(--ac); outline-offset:2px}
-.lk .t{display:block; font-weight:700; overflow-wrap:anywhere}
-.lk .t::after{content:" ↗"; color:var(--ac); font-weight:600}
-.lk .d{display:block; margin-top:.1rem; color:var(--mut); font-size:.86rem; line-height:1.35}
-.lk .h{display:block; margin-top:.2rem; color:var(--mut2); font:.72rem var(--f-mono); overflow-wrap:anywhere}
+/* Carte ---------------------------------------------------------------------- */
+.mapcard{padding:.5rem}
+#map{position:relative; z-index:0; isolation:isolate; height:clamp(260px,52vh,560px); border-radius:var(--r-m); overflow:hidden; background:var(--card2)}
+.mapnote{margin:.5rem .4rem .1rem; color:var(--mut); font-size:.82rem}
 
-footer{margin-top:1.4rem; color:var(--mut); font-size:.8rem; text-align:center}
-footer code{font-family:var(--f-mono)}
+/* Pastilles de synthèse ------------------------------------------------------- */
+.where{margin:0 0 .6rem; font-weight:700; overflow-wrap:anywhere}
+.where small{display:block; color:var(--mut); font:.78rem var(--f-mono)}
+.badges{display:flex; flex-wrap:wrap; gap:.5rem}
+.badge{flex:1 1 9rem; min-width:0; padding:.55rem .75rem; border:2px solid var(--line); border-radius:var(--r-m); background:var(--card2)}
+.badge .bl{display:block; color:var(--mut); font-size:.74rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em}
+.badge .bv{display:block; font-size:1rem; font-weight:800; overflow-wrap:anywhere}
+.badge.ok{border-color:var(--ok)} .badge.warn{border-color:var(--warn)} .badge.bad{border-color:var(--err)}
+.badge.ok .bv::before{content:"✓ "; color:var(--ok)} .badge.warn .bv::before{content:"! "; color:var(--warn)}
+.badge.bad .bv::before{content:"✕ "; color:var(--err)} .badge.unk .bv::before{content:"? "; color:var(--mut)}
+
+/* Grille des informations ------------------------------------------------------ */
+.grid{display:grid; gap:.8rem; grid-template-columns:repeat(auto-fit,minmax(min(100%,21rem),1fr)); align-items:start; margin-top:.8rem}
+.grid .card{margin:0}
+.kv{display:grid; gap:.45rem .8rem; grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr)); margin:0}
+.kv>div{min-width:0}
+.kv dt{color:var(--mut); font-size:.76rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em}
+.kv dd{margin:0; font-weight:700; overflow-wrap:anywhere}
+.rbig{margin:0 0 .4rem; font-size:1.05rem; font-weight:800}
+.rlist{list-style:none; margin:0 0 .5rem; padding:0; display:grid; gap:.35rem}
+.rlist li{padding:.5rem .7rem; border-radius:var(--r-s); border-left:6px solid var(--mut2); background:var(--card2)}
+.rlist li.ok{border-left-color:var(--ok)} .rlist li.warn{border-left-color:var(--warn)} .rlist li.bad{border-left-color:var(--err)}
+.rlist small{display:block; color:var(--mut); font-weight:400}
+.note{margin:.5rem 0 0; color:var(--mut); font-size:.82rem}
+.note a{color:var(--ac)}
+details.legend{margin-top:.5rem}
+details.legend summary{cursor:pointer; color:var(--ac); font-weight:700; min-height:2.2rem; display:flex; align-items:center}
+details.legend img{display:block; max-width:100%; height:auto; margin-top:.4rem; background:#fff; border-radius:var(--r-s)}
+table.hours{width:100%; table-layout:fixed; border-collapse:collapse; font-size:.86rem; font-variant-numeric:tabular-nums}
+table.hours th{color:var(--mut); font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; text-align:right; padding:.2rem .3rem; border-bottom:1px solid var(--line)}
+table.hours td{text-align:right; padding:.3rem .3rem; border-bottom:1px solid var(--line)}
+table.hours th:first-child,table.hours td:first-child{text-align:left; font-weight:800; width:3.4em}
+table.hours tr.g-warn td:nth-child(3){color:var(--warn); font-weight:800}
+table.hours tr.g-bad td:nth-child(3){color:var(--err); font-weight:800}
+.loading{color:var(--mut); font-style:italic}
+
+footer{margin-top:1.2rem; color:var(--mut); font-size:.8rem}
+footer p{margin:.4rem 0}
+footer a{color:var(--ac)}
+
+.leaflet-container{font:inherit}
 
 @media (max-width:360px){
   body{font-size:15px}
   .subtitle{display:none}
-  .chips a{padding:.45rem .7rem}
-  .links{padding:0 .5rem .6rem}
+  .pill{padding:0 .75rem}
+  .card{padding:.75rem .7rem}
+  table.hours{font-size:.78rem}
+  table.hours th,table.hours td{padding:.25rem .15rem}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
-@media print{.topbar,.chips{display:none} details.cat{box-shadow:none} details.cat:not([open])>*:not(summary){display:block}}
 </style>
 </head>
 <body>
 <header class="topbar">
   <div class="topbar-in">
-    <h1 class="brand"><span>FPV · liens utiles</span><span class="subtitle">Configurer un drone : radio, firmware, ESC, outils</span></h1>
+    <h1 class="brand"><span>FPV · terrain</span><span class="subtitle">Météo et restrictions de vol à l'endroit choisi</span></h1>
+    <a class="pill" href="liens.html">Liens</a>
     <button class="iconbtn" id="theme" type="button" aria-label="Thème : automatique" title="Thème : automatique">◐</button>
   </div>
 </header>
 
 <main class="wrap">
-  <nav class="chips" aria-label="Sections">
-    <a href="#elrs">📡 Radio · ExpressLRS</a>
-    <a href="#edgetx">🎮 Radio · EdgeTX</a>
-    <a href="#betaflight">🛩️ Betaflight</a>
-    <a href="#inav">🧭 INAV</a>
-    <a href="#ardupilot">🛰️ ArduPilot</a>
-    <a href="#esc">⚙️ ESC</a>
-    <a href="#outils">🔬 Analyse et outils</a>
-    <a href="#video">📷 Vidéo</a>
-    <a href="#ref">🇫🇷 Réglementation et communauté</a>
-  </nav>
-  <p class="intro">96 liens vérifiés dans 9 rubriques : documentation officielle et outils pour la radio, le contrôleur de vol, les ESC et l'analyse.</p>
+  <section class="card" aria-label="Choix du lieu">
+    <form id="searchForm" role="search">
+      <input class="field" id="q" type="search" placeholder="Lieu (ville, village…)" autocomplete="off" aria-label="Rechercher un lieu">
+      <button class="btn primary" type="submit">Chercher</button>
+      <button class="btn" type="button" id="gps">Ma position</button>
+    </form>
+    <ul class="results" id="results" hidden></ul>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </section>
 
-  <details class="cat" id="elrs" open>
-    <summary><span class="ic" aria-hidden="true">📡</span><span class="nm">Radio · ExpressLRS</span><span class="n">18</span></summary>
-    <ul class="links">
-      <li><a class="lk" href="https://www.expresslrs.org/"><span class="t">ExpressLRS</span><span class="d">Site officiel et documentation</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/quick-start/getting-started/"><span class="t">Démarrage rapide</span><span class="d">Les étapes de la première mise en route</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/hardware/hardware-selection/"><span class="t">Choisir son matériel</span><span class="d">Émetteurs, modules et récepteurs compatibles</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/quick-start/installing-configurator/"><span class="t">Installer le Configurator</span><span class="d">L&#x27;outil pour flasher et régler émetteurs et récepteurs</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://github.com/ExpressLRS/ExpressLRS-Configurator/releases"><span class="t">ExpressLRS Configurator</span><span class="d">Téléchargements (releases GitHub)</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/quick-start/transmitters/tx-prep/"><span class="t">Préparer l&#x27;émetteur</span><span class="d">Module ou radio ELRS : mise à jour et réglages</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/quick-start/transmitters/lua-howto/"><span class="t">Script Lua</span><span class="d">Régler ExpressLRS depuis la radio</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/quick-start/binding/"><span class="t">Appairage (binding)</span><span class="d">Phrase de binding et procédure</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/quick-start/receivers/wiring-up/"><span class="t">Câbler un récepteur</span><span class="d">Branchement au contrôleur de vol</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/quick-start/receivers/configuring-fc/"><span class="t">Régler le contrôleur de vol</span><span class="d">Configuration du FC pour un récepteur ELRS</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/quick-start/receivers/updating/"><span class="t">Mettre à jour un récepteur</span><span class="d">Flasher le firmware d&#x27;un récepteur</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/quick-start/firmware-options/"><span class="t">Options de firmware</span><span class="d">Les options de compilation et leurs effets</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/info/signal-health/"><span class="t">Qualité du signal</span><span class="d">Comprendre LQ, RSSI et SNR</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/software/dynamic-transmit-power/"><span class="t">Puissance dynamique</span><span class="d">Ajuster la puissance d&#x27;émission en vol</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/software/model-config-match/"><span class="t">Model Match</span><span class="d">Éviter de piloter le mauvais modèle</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/quick-start/troubleshooting/"><span class="t">Dépannage</span><span class="d">Les problèmes courants et leurs solutions</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://www.expresslrs.org/faq/"><span class="t">FAQ</span><span class="d">Questions fréquentes</span><span class="h">expresslrs.org</span></a></li>
-      <li><a class="lk" href="https://github.com/ExpressLRS/ExpressLRS"><span class="t">ExpressLRS sur GitHub</span><span class="d">Code source et releases du firmware</span><span class="h">github.com</span></a></li>
-    </ul>
-  </details>
-  <details class="cat" id="edgetx" open>
-    <summary><span class="ic" aria-hidden="true">🎮</span><span class="nm">Radio · EdgeTX</span><span class="n">4</span></summary>
-    <ul class="links">
-      <li><a class="lk" href="https://edgetx.org/"><span class="t">EdgeTX</span><span class="d">Site officiel du firmware de radio</span><span class="h">edgetx.org</span></a></li>
-      <li><a class="lk" href="https://manual.edgetx.org/"><span class="t">Manuel EdgeTX</span><span class="d">La documentation complète</span><span class="h">manual.edgetx.org</span></a></li>
-      <li><a class="lk" href="https://buddy.edgetx.org/"><span class="t">EdgeTX Buddy</span><span class="d">Préparer la carte SD et flasher la radio</span><span class="h">buddy.edgetx.org</span></a></li>
-      <li><a class="lk" href="https://github.com/EdgeTX/edgetx/releases"><span class="t">Releases EdgeTX</span><span class="d">Firmwares et Companion</span><span class="h">github.com</span></a></li>
-    </ul>
-  </details>
-  <details class="cat" id="betaflight" open>
-    <summary><span class="ic" aria-hidden="true">🛩️</span><span class="nm">Betaflight</span><span class="n">24</span></summary>
-    <ul class="links">
-      <li><a class="lk" href="https://betaflight.com/"><span class="t">Betaflight</span><span class="d">Site officiel</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki"><span class="t">Wiki et documentation</span><span class="d">Guides de configuration et de réglage</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://app.betaflight.com/"><span class="t">Configurator en ligne</span><span class="d">Le Configurator dans le navigateur</span><span class="h">app.betaflight.com</span></a></li>
-      <li><a class="lk" href="https://github.com/betaflight/betaflight-configurator/releases"><span class="t">Configurator (releases)</span><span class="d">Application de bureau, toutes versions</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/betaflight/betaflight"><span class="t">Betaflight sur GitHub</span><span class="d">Code source et firmware</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/release/Betaflight-2026-6-Release-Notes"><span class="t">Notes de version 2026.6</span><span class="d">Ce qui change dans la dernière version</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/getting-started/setup-guide"><span class="t">Guide de mise en route</span><span class="d">De la première connexion au premier vol</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Modes"><span class="t">Modes</span><span class="d">Armement et modes de vol sur les interrupteurs</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Failsafe"><span class="t">Failsafe</span><span class="d">Que fait le drone quand il perd la radio</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Arming-Sequence-And-Safety"><span class="t">Armement et sécurité</span><span class="d">Séquence d&#x27;armement et protections</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Dshot"><span class="t">DShot</span><span class="d">Protocole numérique des moteurs</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/DSHOT-RPM-Filtering"><span class="t">Filtrage RPM DShot</span><span class="d">Filtres basés sur la vitesse des moteurs</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Reversed-motor-direction"><span class="t">Sens des moteurs</span><span class="d">Inverser la rotation sans ressouder</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/PID-Tuning-Guide"><span class="t">Réglage des PID</span><span class="d">Le guide de référence</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/tuning/4-3-Tuning-Notes"><span class="t">Notes de réglage 4.3</span><span class="d">Notes de réglage pour la version 4.3</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Rate-Calculator"><span class="t">Calculateur de rates</span><span class="d">Visualiser et choisir ses courbes de rates</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/OSD-Profiles"><span class="t">OSD</span><span class="d">Profils d&#x27;OSD et éléments affichés</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/VTX"><span class="t">VTX</span><span class="d">Régler l&#x27;émetteur vidéo depuis le FC</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Serial-BlackBox-Logging"><span class="t">Blackbox sur port série</span><span class="d">Enregistrer les logs de vol</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://blackbox.betaflight.com/"><span class="t">Blackbox Explorer</span><span class="d">Lire les logs de vol dans le navigateur</span><span class="h">blackbox.betaflight.com</span></a></li>
-      <li><a class="lk" href="https://github.com/betaflight/blackbox-log-viewer"><span class="t">Blackbox Explorer (GitHub)</span><span class="d">Version de bureau et code source</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/USB-Flashing"><span class="t">Flasher par USB</span><span class="d">Mettre à jour le firmware en USB et DFU</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Setup-for-a-Fixed-Wing-Aircraft"><span class="t">Aile fixe</span><span class="d">Betaflight sur un avion</span><span class="h">betaflight.com</span></a></li>
-      <li><a class="lk" href="https://github.com/emuflight/EmuFlight"><span class="t">EmuFlight</span><span class="d">Le fork orienté freestyle</span><span class="h">github.com</span></a></li>
-    </ul>
-  </details>
-  <details class="cat" id="inav" open>
-    <summary><span class="ic" aria-hidden="true">🧭</span><span class="nm">INAV</span><span class="n">12</span></summary>
-    <ul class="links">
-      <li><a class="lk" href="https://inavflight.github.io/"><span class="t">INAV</span><span class="d">Site officiel</span><span class="h">inavflight.github.io</span></a></li>
-      <li><a class="lk" href="https://github.com/iNavFlight/inav/wiki"><span class="t">Wiki INAV</span><span class="d">La documentation</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/iNavFlight/inav-configurator/releases"><span class="t">Configurator (releases)</span><span class="d">Téléchargements du Configurator</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/iNavFlight/inav"><span class="t">INAV sur GitHub</span><span class="d">Code source et firmware</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/iNavFlight/inav/blob/master/docs/Settings.md"><span class="t">Liste des paramètres</span><span class="d">Tous les réglages de la ligne de commande</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/iNavFlight/inav/wiki/Modes"><span class="t">Modes</span><span class="d">Modes de vol et interrupteurs</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/iNavFlight/inav/wiki/Navigation-modes"><span class="t">Modes de navigation</span><span class="d">Retour maison, maintien de position, missions</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/iNavFlight/inav/wiki/Failsafe"><span class="t">Failsafe</span><span class="d">Comportement en cas de perte de signal</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/iNavFlight/inav/wiki/Fixed-Wing-Guide"><span class="t">Guide de l&#x27;aile fixe</span><span class="d">Mise en route d&#x27;un avion</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/iNavFlight/inav/wiki/Sensor-Calibration"><span class="t">Calibration des capteurs</span><span class="d">Accéléromètre, boussole, baromètre</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/iNavFlight/inav/wiki/Safety"><span class="t">Sécurité</span><span class="d">Les précautions avant de voler</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/iNavFlight/blackbox-log-viewer"><span class="t">Blackbox log viewer</span><span class="d">Lire les logs de vol</span><span class="h">github.com</span></a></li>
-    </ul>
-  </details>
-  <details class="cat" id="ardupilot" open>
-    <summary><span class="ic" aria-hidden="true">🛰️</span><span class="nm">ArduPilot</span><span class="n">14</span></summary>
-    <ul class="links">
-      <li><a class="lk" href="https://ardupilot.org/"><span class="t">ArduPilot</span><span class="d">Site officiel</span><span class="h">ardupilot.org</span></a></li>
-      <li><a class="lk" href="https://ardupilot.org/copter/"><span class="t">Copter</span><span class="d">Documentation multirotors</span><span class="h">ardupilot.org</span></a></li>
-      <li><a class="lk" href="https://ardupilot.org/plane/"><span class="t">Plane</span><span class="d">Documentation avions</span><span class="h">ardupilot.org</span></a></li>
-      <li><a class="lk" href="https://ardupilot.org/rover/"><span class="t">Rover</span><span class="d">Documentation véhicules terrestres et bateaux</span><span class="h">ardupilot.org</span></a></li>
-      <li><a class="lk" href="https://ardupilot.org/planner/"><span class="t">Mission Planner</span><span class="d">La station sol de référence (Windows)</span><span class="h">ardupilot.org</span></a></li>
-      <li><a class="lk" href="https://qgroundcontrol.com/"><span class="t">QGroundControl</span><span class="d">Station sol multiplateforme</span><span class="h">qgroundcontrol.com</span></a></li>
-      <li><a class="lk" href="https://firmware.ardupilot.org/"><span class="t">Firmwares</span><span class="d">Téléchargement des versions et des cibles</span><span class="h">firmware.ardupilot.org</span></a></li>
-      <li><a class="lk" href="https://ardupilot.org/copter/docs/parameters.html"><span class="t">Liste des paramètres</span><span class="d">Tous les paramètres de Copter</span><span class="h">ardupilot.org</span></a></li>
-      <li><a class="lk" href="https://ardupilot.org/copter/docs/common-autopilots.html"><span class="t">Contrôleurs compatibles</span><span class="d">Les cartes supportées</span><span class="h">ardupilot.org</span></a></li>
-      <li><a class="lk" href="https://ardupilot.org/copter/docs/initial-tuning-flight.html"><span class="t">Premier vol de réglage</span><span class="d">Réglages initiaux avant le premier vrai vol</span><span class="h">ardupilot.org</span></a></li>
-      <li><a class="lk" href="https://ardupilot.org/copter/docs/common-crsf-telemetry.html"><span class="t">Télémétrie CRSF</span><span class="d">Radio et télémétrie via CRSF (ExpressLRS, Crossfire)</span><span class="h">ardupilot.org</span></a></li>
-      <li><a class="lk" href="https://ardupilot.org/mavproxy/"><span class="t">MAVProxy</span><span class="d">Station sol en ligne de commande</span><span class="h">ardupilot.org</span></a></li>
-      <li><a class="lk" href="https://ardupilot.github.io/MethodicConfigurator/"><span class="t">Methodic Configurator</span><span class="d">Régler les paramètres étape par étape</span><span class="h">ardupilot.github.io</span></a></li>
-      <li><a class="lk" href="https://discuss.ardupilot.org/"><span class="t">Forum ArduPilot</span><span class="d">Entraide et discussions</span><span class="h">discuss.ardupilot.org</span></a></li>
-    </ul>
-  </details>
-  <details class="cat" id="esc" open>
-    <summary><span class="ic" aria-hidden="true">⚙️</span><span class="nm">ESC</span><span class="n">8</span></summary>
-    <ul class="links">
-      <li><a class="lk" href="https://esc-configurator.com/"><span class="t">ESC Configurator</span><span class="d">Configurateur web pour Bluejay, BLHeli_S et AM32</span><span class="h">esc-configurator.com</span></a></li>
-      <li><a class="lk" href="https://github.com/bird-sanctuary/bluejay"><span class="t">Bluejay</span><span class="d">Firmware ouvert pour les ESC BLHeli_S</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/bird-sanctuary/bluejay/wiki"><span class="t">Wiki Bluejay</span><span class="d">Installation et réglages</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://am32.ca/"><span class="t">AM32</span><span class="d">Site du firmware d&#x27;ESC ouvert</span><span class="h">am32.ca</span></a></li>
-      <li><a class="lk" href="https://github.com/am32-firmware/AM32"><span class="t">AM32 sur GitHub</span><span class="d">Code source et releases</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/am32-firmware/AM32/wiki"><span class="t">Wiki AM32</span><span class="d">Documentation et cartes supportées</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/bitdump/BLHeli"><span class="t">BLHeli</span><span class="d">Dépôt BLHeli et BLHeli_S</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/bitdump/BLHeli/releases"><span class="t">BLHeli (releases)</span><span class="d">BLHeliSuite et firmwares</span><span class="h">github.com</span></a></li>
-    </ul>
-  </details>
-  <details class="cat" id="outils" open>
-    <summary><span class="ic" aria-hidden="true">🔬</span><span class="nm">Analyse et outils</span><span class="n">8</span></summary>
-    <ul class="links">
-      <li><a class="lk" href="https://github.com/lstux/FPVTools"><span class="t">FPVTools</span><span class="d">Mes scripts d&#x27;installation des outils FPV sous Linux</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://gyroflow.xyz/"><span class="t">Gyroflow</span><span class="d">Stabilisation vidéo à partir des données du gyroscope</span><span class="h">gyroflow.xyz</span></a></li>
-      <li><a class="lk" href="https://github.com/gyroflow/gyroflow"><span class="t">Gyroflow sur GitHub</span><span class="d">Code source et releases</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://github.com/Plasmatree/PID-Analyzer"><span class="t">PID-Analyzer</span><span class="d">Analyser la réponse des PID depuis un log Blackbox</span><span class="h">github.com</span></a></li>
-      <li><a class="lk" href="https://www.ecalc.ch/"><span class="t">eCalc</span><span class="d">Calculs de motorisation, de poussée et d&#x27;autonomie</span><span class="h">ecalc.ch</span></a></li>
-      <li><a class="lk" href="https://zadig.akeo.ie/"><span class="t">Zadig</span><span class="d">Pilote USB pour le mode DFU sous Windows</span><span class="h">zadig.akeo.ie</span></a></li>
-      <li><a class="lk" href="https://oscarliang.com/"><span class="t">Oscar Liang</span><span class="d">Tutoriels et guides FPV</span><span class="h">oscarliang.com</span></a></li>
-      <li><a class="lk" href="https://www.youtube.com/@JoshuaBardwell"><span class="t">Joshua Bardwell</span><span class="d">Vidéos de réglage et de dépannage</span><span class="h">youtube.com</span></a></li>
-    </ul>
-  </details>
-  <details class="cat" id="video" open>
-    <summary><span class="ic" aria-hidden="true">📷</span><span class="nm">Vidéo</span><span class="n">3</span></summary>
-    <ul class="links">
-      <li><a class="lk" href="https://www.hd-zero.com/"><span class="t">HDZero</span><span class="d">Système vidéo numérique à très faible latence</span><span class="h">hd-zero.com</span></a></li>
-      <li><a class="lk" href="https://walksnail.app/"><span class="t">Walksnail</span><span class="d">Système vidéo numérique HD</span><span class="h">walksnail.app</span></a></li>
-      <li><a class="lk" href="https://openipc.org/"><span class="t">OpenIPC</span><span class="d">Firmware ouvert pour caméras et émetteurs vidéo</span><span class="h">openipc.org</span></a></li>
-    </ul>
-  </details>
-  <details class="cat" id="ref" open>
-    <summary><span class="ic" aria-hidden="true">🇫🇷</span><span class="nm">Réglementation et communauté</span><span class="n">5</span></summary>
-    <ul class="links">
-      <li><a class="lk" href="https://alphatango.aviation-civile.gouv.fr/"><span class="t">AlphaTango</span><span class="d">Portail de la DGAC : enregistrement exploitant et pilote</span><span class="h">alphatango.aviation-civile.gouv.fr</span></a></li>
-      <li><a class="lk" href="https://www.geoportail.gouv.fr/donnees/restrictions-uas-categorie-ouverte-et-aeromodelisme"><span class="t">Zones de restriction</span><span class="d">Carte Géoportail : catégorie ouverte et aéromodélisme</span><span class="h">geoportail.gouv.fr</span></a></li>
-      <li><a class="lk" href="https://www.ffam.asso.fr/"><span class="t">FFAM</span><span class="d">Fédération française d&#x27;aéromodélisme</span><span class="h">ffam.asso.fr</span></a></li>
-      <li><a class="lk" href="https://intofpv.com/"><span class="t">IntoFPV</span><span class="d">Forum de la communauté FPV</span><span class="h">intofpv.com</span></a></li>
-      <li><a class="lk" href="https://www.velocidrone.com/"><span class="t">VelociDrone</span><span class="d">Simulateur de drone FPV</span><span class="h">velocidrone.com</span></a></li>
-    </ul>
-  </details>
+  <section class="card mapcard" aria-label="Carte">
+    <div id="map"></div>
+    <p class="mapnote">Touche la carte ou déplace le repère pour changer de lieu. Le calque « Restrictions drones » se règle avec le bouton de couches de la carte.</p>
+  </section>
+
+  <section id="info" hidden aria-label="Informations sur le terrain">
+    <div class="card">
+      <p class="where" id="where"></p>
+      <div class="badges" id="badges">
+        <div class="badge unk" id="b-restr"><span class="bl">Restriction</span><span class="bv">…</span></div>
+        <div class="badge unk" id="b-vent"><span class="bl">Vent</span><span class="bv">…</span></div>
+        <div class="badge unk" id="b-pluie"><span class="bl">Pluie · visibilité</span><span class="bv">…</span></div>
+        <div class="badge unk" id="b-jour"><span class="bl">Lumière</span><span class="bv">…</span></div>
+        <div class="badge unk" id="b-kp"><span class="bl">GPS (Kp)</span><span class="bv">…</span></div>
+      </div>
+      <p class="note">Pastilles indicatives : les seuils sont dans le script (SEUILS), à adapter à tes machines.</p>
+    </div>
+
+    <div class="grid">
+      <div class="card" id="c-restr">
+        <h2>Restrictions de vol</h2>
+        <div id="restrBody" class="loading">Interrogation de la carte officielle…</div>
+        <details class="legend">
+          <summary>Légende de la carte</summary>
+          <img alt="Légende des restrictions UAS : vol interdit, hauteurs maximales de 30, 50, 60 et 100 m, notification pour plus de 900 g, vol interdit au-dessus de 120 m" width="300" height="69" loading="lazy" src="https://data.geopf.fr/annexes/ressources/legendes/TRANSPORTS.DRONES.RESTRICTIONS-legend.png">
+        </details>
+        <p class="note">Cette carte <strong>ne couvre pas les interdictions temporaires</strong> (manifestations, secours, NOTAM) : consulte le <a href="https://www.sia.aviation-civile.gouv.fr/">SIA</a> avant de voler. Elle n'engage pas la responsabilité de ses producteurs.</p>
+      </div>
+
+      <div class="card" id="c-meteo">
+        <h2>Météo maintenant</h2>
+        <div id="meteoBody" class="loading">Chargement…</div>
+      </div>
+
+      <div class="card" id="c-hours">
+        <h2>Prochaines heures</h2>
+        <div id="hoursBody" class="loading">Chargement…</div>
+      </div>
+
+      <div class="card" id="c-ciel">
+        <h2>Terrain et ciel</h2>
+        <div id="cielBody" class="loading">Chargement…</div>
+        <p class="note" id="cielNote" hidden></p>
+      </div>
+    </div>
+  </section>
 
   <footer>
-    Liens vérifiés le 6 novembre 2026. Un lien cassé ? <code>./check-links.sh</code> les revérifie tous.
+    <p>Informations <strong>indicatives</strong> : elles ne remplacent ni la réglementation (arrêté « espaces », règles locales), ni les restrictions temporaires, ni ton jugement sur place.</p>
+    <p>Données : météo <a href="https://open-meteo.com/">Open-Meteo.com</a> (CC BY 4.0) · cartes, restrictions UAS (DGAC) et altitude <a href="https://geoservices.ign.fr/">IGN</a> · fond <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · indice Kp <a href="https://www.swpc.noaa.gov/">NOAA SWPC</a>.</p>
+    <p>Tes coordonnées sont envoyées à ces services depuis ton navigateur, jamais à ce site. Les restrictions ne sont disponibles qu'en France et outre-mer. D'autres liens : <a href="liens.html">liens utiles</a>.</p>
   </footer>
 </main>
 
+<script src="vendor/leaflet/leaflet.js"></script>
 <script>
-(function(){
-  var root=document.documentElement, KEY="fpv-links-theme";
-  function load(){try{return localStorage.getItem(KEY)}catch(e){return null}}
-  function save(v){try{if(v)localStorage.setItem(KEY,v);else localStorage.removeItem(KEY)}catch(e){}}
+(function () {
+  "use strict";
 
-  /* Thème : automatique (système) -> sombre -> clair */
-  var btn=document.getElementById("theme");
-  var names={"":"automatique",dark:"sombre",light:"clair"};
-  function paint(){
-    var cur=root.getAttribute("data-theme")||"";
-    var txt="Thème : "+names[cur];
-    btn.setAttribute("aria-label",txt); btn.title=txt;
-    btn.textContent=cur==="dark"?"☾":cur==="light"?"☀":"◐";
-  }
-  var saved=load(); if(saved==="dark"||saved==="light") root.setAttribute("data-theme",saved);
-  btn.addEventListener("click",function(){
-    var cur=root.getAttribute("data-theme")||"";
-    var next=cur===""?"dark":cur==="dark"?"light":"";
-    if(next)root.setAttribute("data-theme",next); else root.removeAttribute("data-theme");
-    save(next); paint();
-  });
-  paint();
+  /* Seuils des pastilles : indicatifs, à adapter à tes machines et à ton niveau (vitesses en km/h) */
+  var SEUILS = {
+    vent:    { orange: 25, rouge: 35 },
+    rafales: { orange: 30, rouge: 45 },
+    probaPluie: 40,          // % : pastille orange à partir de là (sur les 3 prochaines heures)
+    visibiliteKm: 3,         // pastille orange en dessous
+    kp: { orange: 4, rouge: 5 }
+  };
 
-  /* Petits écrans : rubriques repliées, on ouvre celle qu'on choisit (sans JavaScript, tout reste ouvert) */
-  var cats=[].slice.call(document.querySelectorAll("details.cat"));
-  if(window.matchMedia&&window.matchMedia("(max-width:520px)").matches) cats.forEach(function(d){d.open=false});
-  function openHash(){
-    var id=decodeURIComponent(location.hash.slice(1)); if(!id)return;
-    var d=document.getElementById(id);
-    if(d&&d.tagName==="DETAILS"){d.open=true; d.scrollIntoView()}
+  var STORE_KEY = "fpv-terrain-place";
+  var THEME_KEY = "fpv-links-theme";
+  var CARDINAUX = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"];
+  var LEGENDE_NOTE = "* Sauf conditions particulières publiées à l'arrêté « espaces » du 3 décembre 2020.";
+  /* France et outre-mer (rectangles approximatifs : sud, nord, ouest, est) : là où la couche des restrictions existe */
+  var ZONES_FR = [[41.2,51.3,-5.6,9.8],[15.7,16.7,-61.9,-60.9],[14.3,15.0,-61.3,-60.7],[1.9,6.0,-55.0,-51.0],
+                  [-21.6,-20.8,55.1,55.9],[-13.1,-12.5,44.9,45.4],[46.6,47.3,-56.6,-56.1]];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { lat: null, lon: null, label: null, token: 0, kp: undefined, userChoseBase: false };
+  var map, marker, accuracyCircle, baseIgn, baseOsm, baseOrtho, drones;
+
+  /* ---------- Outils ---------- */
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
   }
-  window.addEventListener("hashchange",openHash);
-  openHash();
-  /* Le même choix deux fois de suite ne déclenche pas hashchange : on rouvre à la main. */
-  [].forEach.call(document.querySelectorAll(".chips a"),function(a){
-    a.addEventListener("click",function(){
-      var d=document.getElementById(a.getAttribute("href").slice(1)); if(d)d.open=true;
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+  function num(n, d) {
+    if (n == null || isNaN(n)) return "—";
+    return Number(n).toLocaleString("fr-FR", { maximumFractionDigits: d || 0, minimumFractionDigits: d || 0 });
+  }
+  function hhmm(iso) { return iso ? iso.slice(11, 16) : "—"; }
+  function cardinal(deg) { return deg == null ? "" : CARDINAUX[Math.round(deg / 22.5) % 16]; }
+  function fetchJSON(url, ms) {
+    var ctl = new AbortController();
+    var t = setTimeout(function () { ctl.abort(); }, ms || 12000);
+    return fetch(url, { signal: ctl.signal }).then(function (r) {
+      clearTimeout(t);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }, function (e) { clearTimeout(t); throw e; });
+  }
+  function status(msg, kind) {
+    var s = $("status");
+    s.textContent = msg || "";
+    s.className = "status" + (kind ? " " + kind : "");
+  }
+  function validCoord(lat, lon) {
+    return isFinite(lat) && isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
+  }
+  function inFrance(lat, lon) {
+    return ZONES_FR.some(function (z) { return lat >= z[0] && lat <= z[1] && lon >= z[2] && lon <= z[3]; });
+  }
+  function storeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function storeSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+
+  /* ---------- Thème (automatique -> sombre -> clair, comme liens.html) ---------- */
+  (function theme() {
+    var root = document.documentElement, btn = $("theme");
+    var names = { "": "automatique", dark: "sombre", light: "clair" };
+    function paint() {
+      var cur = root.getAttribute("data-theme") || "";
+      var txt = "Thème : " + names[cur];
+      btn.setAttribute("aria-label", txt); btn.title = txt;
+      btn.textContent = cur === "dark" ? "☾" : cur === "light" ? "☀" : "◐";
+    }
+    var saved = storeGet(THEME_KEY);
+    if (saved === "dark" || saved === "light") root.setAttribute("data-theme", saved);
+    btn.addEventListener("click", function () {
+      var cur = root.getAttribute("data-theme") || "";
+      var next = cur === "" ? "dark" : cur === "dark" ? "light" : "";
+      if (next) root.setAttribute("data-theme", next); else root.removeAttribute("data-theme");
+      storeSet(THEME_KEY, next || null); paint();
     });
+    paint();
+  })();
+
+  /* ---------- Carte ---------- */
+  function wmts(layer, tms, fmt) {
+    return "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=" + layer +
+      "&STYLE=normal&FORMAT=image/" + fmt + "&TILEMATRIXSET=" + tms + "&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}";
+  }
+  function initMap() {
+    map = L.map("map", { center: [46.6, 2.4], zoom: 5, worldCopyJump: true });
+    baseIgn = L.tileLayer(wmts("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "PM", "png"),
+      { maxZoom: 18, attribution: '© <a href="https://geoservices.ign.fr/">IGN</a>' });
+    baseOsm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      { maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' });
+    baseOrtho = L.tileLayer(wmts("ORTHOIMAGERY.ORTHOPHOTOS", "PM", "jpeg"),
+      { maxZoom: 19, attribution: '© <a href="https://geoservices.ign.fr/">IGN</a>' });
+    /* les tuiles de restrictions existent jusqu'au zoom 15 : au-delà elles sont agrandies */
+    drones = L.tileLayer(wmts("TRANSPORTS.DRONES.RESTRICTIONS", "PM_3_15", "png"),
+      { minZoom: 3, maxNativeZoom: 15, maxZoom: 19, opacity: 0.65, attribution: 'Restrictions : DGAC / IGN' });
+    baseIgn.addTo(map);
+    drones.addTo(map);
+    L.control.layers({ "Plan IGN": baseIgn, "OpenStreetMap": baseOsm, "Photos aériennes": baseOrtho },
+                     { "Restrictions drones": drones }, { collapsed: true }).addTo(map);
+    map.on("baselayerchange", function () { state.userChoseBase = true; });
+    map.on("click", function (e) { setPlace(e.latlng.lat, e.latlng.lng, null, { keepView: true }); });
+  }
+  function placeMarker(lat, lon, opt) {
+    if (!marker) {
+      marker = L.marker([lat, lon], { draggable: true, title: "Repère : glisse-le pour changer de lieu" }).addTo(map);
+      marker.on("dragend", function () {
+        var p = marker.getLatLng();
+        setPlace(p.lat, p.lng, null, { keepView: true, fromMarker: true });
+      });
+    } else if (!opt.fromMarker) {
+      marker.setLatLng([lat, lon]);
+    }
+    if (accuracyCircle) { map.removeLayer(accuracyCircle); accuracyCircle = null; }
+    if (opt.accuracy > 0) {
+      accuracyCircle = L.circle([lat, lon], { radius: opt.accuracy, weight: 1, fillOpacity: 0.1 }).addTo(map);
+    }
+    if (opt.keepView) map.panTo([lat, lon]);
+    else map.setView([lat, lon], opt.zoom || Math.max(map.getZoom(), 12));
+  }
+
+  /* ---------- Lieu courant ---------- */
+  function setPlace(lat, lon, label, opt) {
+    opt = opt || {};
+    if (!validCoord(lat, lon)) { status("Coordonnées invalides.", "warn"); return; }
+    state.lat = lat; state.lon = lon; state.label = label || null;
+    /* hors de France, le plan IGN est vide à fort zoom : on passe sur OpenStreetMap (sauf choix de l'utilisateur) */
+    if (!inFrance(lat, lon) && !state.userChoseBase && map.hasLayer(baseIgn)) {
+      map.removeLayer(baseIgn); baseOsm.addTo(map);
+    }
+    placeMarker(lat, lon, opt);
+    storeSet(STORE_KEY, JSON.stringify({ lat: lat, lon: lon, label: state.label }));
+    try { history.replaceState(null, "", location.pathname + "?lat=" + lat.toFixed(5) + "&lon=" + lon.toFixed(5)); } catch (e) {}
+    status("");
+    renderWhere();
+    $("info").hidden = false;
+    refresh();
+  }
+  function renderWhere() {
+    var w = $("where");
+    clear(w);
+    w.appendChild(document.createTextNode(state.label || "Lieu choisi sur la carte"));
+    w.appendChild(el("small", null, num(state.lat, 5) + " , " + num(state.lon, 5)));
+  }
+
+  /* ---------- Recherche, GPS ---------- */
+  function placeLabel(r) {
+    return r.name + (r.admin1 ? ", " + r.admin1 : "") + (r.country ? " (" + r.country + ")" : "");
+  }
+  function choose(r) {
+    $("results").hidden = true;
+    $("q").value = r.name;
+    setPlace(r.latitude, r.longitude, placeLabel(r), { zoom: 13 });
+  }
+  function doSearch(q, auto) {
+    status("Recherche…");
+    $("results").hidden = true;
+    fetchJSON("https://geocoding-api.open-meteo.com/v1/search?count=6&language=fr&format=json&name=" + encodeURIComponent(q))
+      .then(function (d) {
+        var rs = (d && d.results) || [];
+        if (!rs.length) { status("Aucun lieu trouvé pour « " + q + " ».", "warn"); return; }
+        if (auto || rs.length === 1) { choose(rs[0]); return; }
+        var ul = $("results");
+        clear(ul);
+        rs.forEach(function (r) {
+          var li = el("li"), b = el("button", null, r.name);
+          b.type = "button";
+          b.appendChild(el("small", null, [r.admin1, r.country].filter(Boolean).join(" · ") +
+            (r.elevation != null ? " · " + num(r.elevation) + " m" : "")));
+          b.addEventListener("click", function () { choose(r); });
+          li.appendChild(b); ul.appendChild(li);
+        });
+        ul.hidden = false;
+        status("Plusieurs lieux : choisis le bon.");
+      })
+      .catch(function () { status("La recherche de lieu est indisponible (réseau ?). Touche la carte pour choisir un endroit.", "warn"); });
+  }
+  function locate() {
+    if (!navigator.geolocation) {
+      status("Pas de géolocalisation sur cet appareil : cherche un lieu ou touche la carte.", "warn");
+      return;
+    }
+    status("Recherche de ta position…");
+    navigator.geolocation.getCurrentPosition(function (p) {
+      setPlace(p.coords.latitude, p.coords.longitude, "Ma position", { zoom: 14, accuracy: p.coords.accuracy });
+    }, function (e) {
+      var msg = e && e.code === 1
+        ? "Position refusée ou indisponible (c'est normal sur un kiosque sans GPS) : cherche un lieu ou touche la carte."
+        : e && e.code === 3
+          ? "La position met trop de temps à arriver : cherche un lieu ou touche la carte."
+          : "Position introuvable : cherche un lieu ou touche la carte.";
+      status(msg, "warn");
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+  }
+
+  /* ---------- Chargement des données ---------- */
+  function loadWeather(lat, lon) {
+    var url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat.toFixed(5) + "&longitude=" + lon.toFixed(5) +
+      "&current=temperature_2m,apparent_temperature,wind_speed_10m,wind_gusts_10m,wind_direction_10m,precipitation,cloud_cover,visibility,pressure_msl,is_day" +
+      "&hourly=temperature_2m,wind_speed_10m,wind_gusts_10m,wind_speed_120m,precipitation_probability" +
+      "&daily=sunrise,sunset&forecast_days=2&timezone=auto&wind_speed_unit=kmh";
+    return fetchJSON(url);
+  }
+  function loadRestriction(lat, lon) {
+    var d = 0.0005;
+    var bbox = [lat - d, lon - d, lat + d, lon + d].map(function (n) { return n.toFixed(6); }).join(",");
+    return fetchJSON("https://data.geopf.fr/wms-r/wms?service=WMS&version=1.3.0&request=GetFeatureInfo" +
+      "&layers=TRANSPORTS.DRONES.RESTRICTIONS&query_layers=TRANSPORTS.DRONES.RESTRICTIONS&styles=&format=image/png" +
+      "&crs=EPSG:4326&bbox=" + bbox + "&width=101&height=101&i=50&j=50&info_format=application/json&feature_count=10", 15000);
+  }
+  function loadElevation(lat, lon) {
+    return fetchJSON("https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json?lon=" + lon.toFixed(5) +
+      "&lat=" + lat.toFixed(5) + "&resource=ign_rge_alti_wld&zonly=true", 10000);
+  }
+  function loadKp() {
+    if (state.kp !== undefined) return Promise.resolve(state.kp);
+    return fetchJSON("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json", 12000).then(function (rows) {
+      var last = null;
+      rows.forEach(function (r) { if (r && r.Kp != null && !isNaN(parseFloat(r.Kp))) last = r; });
+      state.kp = last ? { kp: parseFloat(last.Kp), time: last.time_tag } : null;
+      return state.kp;
+    });
+  }
+
+  /* ---------- Restrictions ---------- */
+  function classify(limite) {
+    var t = (limite || "").toLowerCase(), m;
+    if (/au-dessus de 120/.test(t)) return { rank: 0, level: "ok", h: 120, court: "120 m max" };
+    if ((m = /hauteur maximale de vol de (\d+)/.exec(t))) return { rank: 2, level: "warn", h: parseInt(m[1], 10), court: m[1] + " m max" };
+    if (/notification/.test(t)) return { rank: 1, level: "warn", court: "Notification" };
+    if (/interdit/.test(t)) return { rank: 3, level: "bad", court: "Interdit" };
+    return { rank: 1, level: "warn", court: "À vérifier" };
+  }
+  function worst(features) {
+    var best = null;
+    features.forEach(function (f) {
+      var c = classify(f.properties && f.properties.limite);
+      if (!best || c.rank > best.rank || (c.rank === best.rank && c.h != null && best.h != null && c.h < best.h)) best = c;
+    });
+    return best;
+  }
+  function renderRestriction(d, lat, lon) {
+    var body = $("restrBody");
+    clear(body); body.className = "";
+    var feats = (d && d.features) || [];
+    if (!feats.length) {
+      if (inFrance(lat, lon)) {
+        body.appendChild(el("p", "rbig", "Aucune zone listée à cet endroit"));
+        body.appendChild(el("p", "note", "Ce n'est pas une autorisation : vérifie la carte officielle et les restrictions temporaires."));
+      } else {
+        body.appendChild(el("p", "rbig", "Hors du périmètre de la carte française"));
+        body.appendChild(el("p", "note", "Les restrictions ne sont disponibles qu'en France et outre-mer. Renseigne-toi auprès de l'autorité aérienne locale."));
+      }
+      return null;
+    }
+    var ul = el("ul", "rlist"), star = false, seen = {};
+    feats.forEach(function (f) {
+      var p = f.properties || {}, key = (p.limite || "") + "|" + (p.remarque || "");
+      if (seen[key]) return;
+      seen[key] = true;
+      var c = classify(p.limite);
+      if (/\*/.test(p.limite || "")) star = true;
+      var li = el("li", c.level, (p.limite || "Zone sans libellé").replace(/\s*\*\s*$/, "") + (/\*/.test(p.limite || "") ? " *" : ""));
+      if (p.remarque) li.appendChild(el("small", null, p.remarque));
+      ul.appendChild(li);
+    });
+    body.appendChild(ul);
+    if (star) body.appendChild(el("p", "note", LEGENDE_NOTE));
+    return worst(feats);
+  }
+
+  /* ---------- Rendu de la météo ---------- */
+  function kvItem(dl, label, value) {
+    var d = el("div"), dt = el("dt", null, label), dd = el("dd", null, value);
+    d.appendChild(dt); d.appendChild(dd); dl.appendChild(d);
+  }
+  function hourIndex(w) {
+    var key = w.current.time.slice(0, 13) + ":00", i = w.hourly.time.indexOf(key);
+    return i < 0 ? 0 : i;
+  }
+  function renderWeather(w) {
+    var c = w.current, i = hourIndex(w), mb = $("meteoBody"), dl = el("dl", "kv");
+    clear(mb); mb.className = ""; mb.appendChild(dl);
+    kvItem(dl, "Température", num(c.temperature_2m, 1) + " °C (ressenti " + num(c.apparent_temperature, 1) + ")");
+    kvItem(dl, "Vent à 10 m", num(c.wind_speed_10m) + " km/h " + cardinal(c.wind_direction_10m) + " " + num(c.wind_direction_10m) + "°");
+    kvItem(dl, "Rafales", num(c.wind_gusts_10m) + " km/h");
+    kvItem(dl, "Vent à 120 m", num(w.hourly.wind_speed_120m[i]) + " km/h");
+    kvItem(dl, "Précipitations", num(c.precipitation, 1) + " mm");
+    kvItem(dl, "Nuages", num(c.cloud_cover) + " %");
+    kvItem(dl, "Visibilité", c.visibility == null ? "—" : (c.visibility >= 10000 ? num(c.visibility / 1000) : num(c.visibility / 1000, 1)) + " km");
+    kvItem(dl, "Pression", num(c.pressure_msl) + " hPa");
+    kvItem(dl, "Heure locale", hhmm(c.time));
+
+    var box = $("hoursBody");
+    clear(box); box.className = "";
+    var t = el("table", "hours"), thead = el("thead"), hr = el("tr");
+    ["Heure", "Vent", "Rafales", "Pluie", "°C"].forEach(function (h) { hr.appendChild(el("th", null, h)); });
+    thead.appendChild(hr); t.appendChild(thead);
+    var tb = el("tbody");
+    for (var k = i; k < Math.min(i + 12, w.hourly.time.length); k++) {
+      var tr = el("tr"), g = w.hourly.wind_gusts_10m[k];
+      if (g >= SEUILS.rafales.rouge) tr.className = "g-bad"; else if (g >= SEUILS.rafales.orange) tr.className = "g-warn";
+      tr.appendChild(el("td", null, w.hourly.time[k].slice(11, 13) + " h"));
+      tr.appendChild(el("td", null, num(w.hourly.wind_speed_10m[k])));
+      tr.appendChild(el("td", null, num(g)));
+      tr.appendChild(el("td", null, w.hourly.precipitation_probability[k] == null ? "—" : num(w.hourly.precipitation_probability[k]) + " %"));
+      tr.appendChild(el("td", null, num(w.hourly.temperature_2m[k])));
+      tb.appendChild(tr);
+    }
+    t.appendChild(tb); box.appendChild(t);
+    box.appendChild(el("p", "note", "Vent et rafales en km/h, à 10 m du sol. Prévisions : le terrain local peut faire beaucoup varier le vent."));
+  }
+  function renderCiel(w, elevIgn, kp) {
+    var cb = $("cielBody"), dl = el("dl", "kv"), note = $("cielNote");
+    clear(cb); cb.className = ""; cb.appendChild(dl);
+    var elev = (elevIgn != null && elevIgn > -1000) ? elevIgn : (w ? w.elevation : null);
+    kvItem(dl, "Altitude du terrain", elev == null ? "—" : num(elev) + " m" + ((elevIgn != null && elevIgn > -1000) ? "" : " (modèle météo)"));
+    if (w) {
+      var sr = w.daily.sunrise[0], ss = w.daily.sunset[0], now = w.current.time;
+      kvItem(dl, "Lever du soleil", hhmm(sr));
+      kvItem(dl, "Coucher du soleil", hhmm(ss));
+      var dayLeft = "—";
+      if (now >= sr && now <= ss) {
+        var mins = Math.round((new Date(ss) - new Date(now)) / 60000);
+        dayLeft = Math.floor(mins / 60) + " h " + ("0" + (mins % 60)).slice(-2);
+      } else dayLeft = "nuit";
+      kvItem(dl, "Jour restant", dayLeft);
+    }
+    kvItem(dl, "Indice Kp", kp ? num(kp.kp, 1) + " · " + (kp.kp >= SEUILS.kp.rouge ? "orageux" : kp.kp >= SEUILS.kp.orange ? "actif" : "calme") : "—");
+    note.hidden = !kp;
+    if (kp) note.textContent = "Kp élevé : GPS moins précis, signes d'orage géomagnétique (mesure NOAA du " + kp.time.slice(0, 10) + ").";
+  }
+
+  /* ---------- Pastilles ---------- */
+  function badge(id, level, text) {
+    var b = $(id);
+    b.className = "badge " + level;
+    b.querySelector(".bv").textContent = text;
+  }
+  function renderBadges(r) {
+    var w = r.w;
+    if (r.restr) badge("b-restr", r.restr.level, r.restr.court);
+    else if (r.restrDone) badge("b-restr", "unk", inFrance(state.lat, state.lon) ? "Aucune zone" : "Hors carte FR");
+    else badge("b-restr", "unk", "Indisponible");
+
+    if (w) {
+      var c = w.current, g = c.wind_gusts_10m, v = c.wind_speed_10m, lv = "ok";
+      if (g >= SEUILS.rafales.rouge || v >= SEUILS.vent.rouge) lv = "bad";
+      else if (g >= SEUILS.rafales.orange || v >= SEUILS.vent.orange) lv = "warn";
+      badge("b-vent", lv, num(v) + " · raf. " + num(g) + " km/h");
+
+      var i = hourIndex(w), pmax = 0;
+      for (var k = i; k < Math.min(i + 3, w.hourly.time.length); k++) {
+        var p = w.hourly.precipitation_probability[k];
+        if (p != null && p > pmax) pmax = p;
+      }
+      var visKm = c.visibility == null ? null : c.visibility / 1000;
+      if (c.precipitation > 0) badge("b-pluie", "bad", "Pluie en cours");
+      else if (visKm != null && visKm < SEUILS.visibiliteKm) badge("b-pluie", "warn", "Visibilité " + num(visKm, 1) + " km");
+      else if (pmax >= SEUILS.probaPluie) badge("b-pluie", "warn", "Pluie possible " + num(pmax) + " %");
+      else badge("b-pluie", "ok", "Sec");
+
+      var sr = w.daily.sunrise[0], ss = w.daily.sunset[0];
+      if (c.is_day === 0 || c.time < sr || c.time > ss) badge("b-jour", "warn", "Nuit");
+      else badge("b-jour", "ok", "Jour · coucher " + hhmm(ss));
+    } else {
+      badge("b-vent", "unk", "Indisponible"); badge("b-pluie", "unk", "Indisponible"); badge("b-jour", "unk", "Indisponible");
+    }
+
+    if (r.kp) badge("b-kp", r.kp.kp >= SEUILS.kp.rouge ? "bad" : r.kp.kp >= SEUILS.kp.orange ? "warn" : "ok", "Kp " + num(r.kp.kp, 1));
+    else badge("b-kp", "unk", "Indisponible");
+  }
+
+  /* ---------- Mise à jour complète ---------- */
+  function failBox(id) {
+    var n = $(id);
+    clear(n); n.className = "";
+    n.appendChild(el("p", "note", "Données indisponibles pour le moment (réseau ou service). Réessaie dans un instant."));
+  }
+  function refresh() {
+    var token = ++state.token, lat = state.lat, lon = state.lon, r = {};
+    var alive = function () { return token === state.token; };
+    ["b-restr", "b-vent", "b-pluie", "b-jour", "b-kp"].forEach(function (id) { badge(id, "unk", "…"); });
+    [["restrBody", "Interrogation de la carte officielle…"], ["meteoBody", "Chargement…"], ["hoursBody", "Chargement…"], ["cielBody", "Chargement…"]]
+      .forEach(function (x) { var n = $(x[0]); clear(n); n.className = "loading"; n.textContent = x[1]; });
+    $("cielNote").hidden = true;
+
+    var jobs = [
+      loadWeather(lat, lon).then(function (w) { r.w = w; if (alive()) renderWeather(w); })
+        .catch(function () { if (alive()) { failBox("meteoBody"); failBox("hoursBody"); } }),
+      loadRestriction(lat, lon).then(function (d) { r.restrDone = true; if (alive()) r.restr = renderRestriction(d, lat, lon); })
+        .catch(function () { if (alive()) failBox("restrBody"); }),
+      loadElevation(lat, lon).then(function (d) { r.elev = d && d.elevations ? d.elevations[0] : null; }).catch(function () {}),
+      loadKp().then(function (kp) { r.kp = kp; }).catch(function () {})
+    ];
+    Promise.all(jobs).then(function () {
+      if (!alive()) return;
+      renderCiel(r.w, r.elev, r.kp);
+      renderBadges(r);
+    });
+  }
+
+  /* ---------- Démarrage ---------- */
+  $("searchForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var q = $("q").value.trim();
+    if (q.length < 2) { status("Écris au moins 2 lettres.", "warn"); return; }
+    doSearch(q, false);
   });
+  $("gps").addEventListener("click", locate);
+
+  if (typeof L === "undefined") {
+    status("La carte n'a pas pu se charger (vendor/leaflet manquant).", "warn");
+    return;
+  }
+  initMap();
+
+  var params = {};
+  try { new URLSearchParams(location.search).forEach(function (v, k) { params[k] = v; }); } catch (e) {}
+  var plat = parseFloat(String(params.lat || "").replace(",", ".")), plon = parseFloat(String(params.lon || "").replace(",", "."));
+  var saved = null;
+  try { saved = JSON.parse(storeGet(STORE_KEY) || "null"); } catch (e) {}
+
+  if (validCoord(plat, plon) && params.lat && params.lon) {
+    setPlace(plat, plon, null, { zoom: 13 });
+  } else if (params.q && params.q.trim().length >= 2) {
+    $("q").value = params.q.trim();
+    doSearch(params.q.trim(), true);
+  } else if (saved && validCoord(saved.lat, saved.lon)) {
+    setPlace(saved.lat, saved.lon, saved.label || null, { zoom: 13 });
+  } else {
+    status("Cherche un lieu, touche la carte ou utilise « Ma position ».");
+    /* si la permission est déjà accordée, on localise sans redemander */
+    try {
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: "geolocation" }).then(function (p) { if (p.state === "granted") locate(); }, function () {});
+      }
+    } catch (e) {}
+  }
 })();
 </script>
 </body>

@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPV · liens utiles</title>
+<meta name="description" content="Tous les liens utiles pour configurer un drone FPV : radio ExpressLRS et EdgeTX, Betaflight, INAV, ArduPilot, ESC, outils et documentation.">
+<meta name="theme-color" content="#f7f5ff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0c22" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235b4bff'/%3E%3Cstop offset='1' stop-color='%23e63b97'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url%28%23g%29'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M22 22l20 20M42 22L22 42'/%3E%3Ccircle cx='19' cy='19' r='6'/%3E%3Ccircle cx='45' cy='19' r='6'/%3E%3Ccircle cx='19' cy='45' r='6'/%3E%3Ccircle cx='45' cy='45' r='6'/%3E%3C/g%3E%3Crect x='27' y='27' width='10' height='10' rx='3' fill='%23fff'/%3E%3C/svg%3E">
+<!--
+  Page autonome : tout le style et le script sont dans ce fichier, rien n'est chargé depuis l'extérieur.
+  Les variables de couleur et de rayon (--bg, --card, --ac, --grad…) sont celles de WebApps/code/common.css :
+  pour l'intégrer à WebApps, supprimer le bloc « Variables » ci-dessous et ajouter <link rel="stylesheet" href="common.css">.
+  Pensée pour les petits écrans (à partir de 240 px de large, écran tactile de kiosque) comme pour les grands.
+-->
+<style>
+/* Variables (identiques à common.css) ----------------------------------- */
+:root{
+  color-scheme:light;
+  --bg:#f7f5ff; --card:#ffffff; --card2:#efecfc; --fg:#1b1736; --mut:#6b6690; --mut2:#b3aed3; --line:#e5e1f6;
+  --ac:#5b4bff; --ac2:#e63b97; --ac3:#ffb020; --on-ac:#ffffff;
+  --glass:#f7f5ffd9; --shadow:0 1px 2px #2b1f8a14,0 8px 24px #2b1f8a14;
+  --ac-soft:color-mix(in srgb,var(--ac) 14%,var(--card));
+  --hover:color-mix(in srgb,var(--fg) 7%,transparent);
+  --grad:linear-gradient(135deg,var(--ac),var(--ac2));
+  --r-s:12px; --r-m:14px; --r-l:20px;
+  --f-ui:ui-rounded,"SF Pro Rounded",Nunito,"Varela Round",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  accent-color:var(--ac);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0f0c22; --card:#1a1633; --card2:#262048; --fg:#f2efff; --mut:#a29ccb; --mut2:#544d78; --line:#2f2858;
+    --ac:#8f7dff; --ac2:#ff6fb5; --ac3:#ffc247; --on-ac:#150b33;
+    --glass:#0f0c22d9; --shadow:0 1px 2px #0007,0 10px 28px #0005;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0f0c22; --card:#1a1633; --card2:#262048; --fg:#f2efff; --mut:#a29ccb; --mut2:#544d78; --line:#2f2858;
+  --ac:#8f7dff; --ac2:#ff6fb5; --ac3:#ffc247; --on-ac:#150b33;
+  --glass:#0f0c22d9; --shadow:0 1px 2px #0007,0 10px 28px #0005;
+}
+
+/* Base --------------------------------------------------------------------- */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; color:var(--fg); font:16px/1.45 var(--f-ui);
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, color-mix(in srgb,var(--ac) 14%,transparent), transparent 70%),
+    radial-gradient(50rem 28rem at -10% 10%, color-mix(in srgb,var(--ac2) 10%,transparent), transparent 70%),
+    var(--bg);
+  background-attachment:fixed;
+}
+.wrap{max-width:74rem; margin:0 auto; padding:0 clamp(.6rem,3vw,1.6rem) 3rem}
+
+/* Barre du haut ------------------------------------------------------------ */
+.topbar{position:sticky; top:0; z-index:5; background:var(--glass); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border-bottom:1px solid var(--line)}
+.topbar-in{max-width:74rem; margin:0 auto; padding:.6rem clamp(.6rem,3vw,1.6rem); display:flex; align-items:center; gap:.6rem}
+.brand{flex:1; min-width:0; margin:0; font-size:1.2rem; font-weight:800; letter-spacing:-.01em; line-height:1.15}
+.brand>span:first-child{background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent}
+.subtitle{display:block; color:var(--mut); font-size:.78rem; font-weight:600; letter-spacing:0}
+.pill{flex:none; display:inline-flex; align-items:center; min-height:2.75rem; padding:0 1rem; border-radius:999px; background:var(--card2); color:var(--fg); text-decoration:none; font-weight:800; font-size:.9rem}
+.pill:hover{background:var(--hover)}
+.iconbtn{flex:none; width:2.75rem; height:2.75rem; border:0; border-radius:50%; background:var(--card2); color:var(--fg); font:inherit; font-size:1.1rem; cursor:pointer}
+.iconbtn:hover{background:var(--hover)}
+
+/* Navigation par pastilles -------------------------------------------------- */
+.chips{display:flex; flex-wrap:wrap; gap:.4rem; padding:.9rem 0 .3rem}
+.chips a{display:inline-block; padding:.5rem .85rem; border-radius:999px; background:var(--card); border:1px solid var(--line); color:var(--fg); text-decoration:none; font-size:.86rem; font-weight:700}
+.chips a:hover{border-color:var(--ac); background:var(--ac-soft)}
+.intro{margin:.2rem 0 .4rem; color:var(--mut); font-size:.92rem}
+
+/* Sections repliables ------------------------------------------------------- */
+details.cat{margin:.8rem 0; background:var(--card); border:1px solid var(--line); border-radius:var(--r-l); box-shadow:var(--shadow); scroll-margin-top:4.5rem}
+details.cat>summary{display:flex; align-items:center; gap:.6rem; padding:.85rem 1rem; min-height:3rem; cursor:pointer; list-style:none; font-weight:800; font-size:1.05rem}
+details.cat>summary::-webkit-details-marker{display:none}
+details.cat>summary::after{content:"›"; margin-left:auto; color:var(--mut); font-size:1.5rem; line-height:1; transition:transform .2s}
+details.cat[open]>summary::after{transform:rotate(90deg)}
+.ic{flex:none; width:1.8rem; text-align:center}
+.nm{min-width:0}
+.n{flex:none; padding:.05rem .5rem; border-radius:999px; background:var(--ac-soft); color:var(--ac); font-size:.78rem; font-weight:800}
+
+/* Liens ---------------------------------------------------------------------- */
+.links{list-style:none; margin:0; padding:0 .8rem .9rem; display:grid; gap:.5rem; grid-template-columns:repeat(auto-fill,minmax(min(100%,16rem),1fr))}
+.lk{display:block; height:100%; min-height:2.75rem; padding:.65rem .8rem; border-radius:var(--r-m); background:var(--card2); border:1px solid transparent; color:var(--fg); text-decoration:none}
+.lk:hover{border-color:var(--ac); background:var(--ac-soft)}
+.lk:focus-visible,.chips a:focus-visible,summary:focus-visible,.iconbtn:focus-visible{outline:3px solid var(--ac); outline-offset:2px}
+.lk .t{display:block; font-weight:700; overflow-wrap:anywhere}
+.lk .t::after{content:" ↗"; color:var(--ac); font-weight:600}
+.lk .d{display:block; margin-top:.1rem; color:var(--mut); font-size:.86rem; line-height:1.35}
+.lk .h{display:block; margin-top:.2rem; color:var(--mut2); font:.72rem var(--f-mono); overflow-wrap:anywhere}
+
+footer{margin-top:1.4rem; color:var(--mut); font-size:.8rem; text-align:center}
+footer code{font-family:var(--f-mono)}
+
+@media (max-width:360px){
+  body{font-size:15px}
+  .subtitle{display:none}
+  .chips a{padding:.45rem .7rem}
+  .links{padding:0 .5rem .6rem}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media print{.topbar,.chips{display:none} details.cat{box-shadow:none} details.cat:not([open])>*:not(summary){display:block}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-in">
+    <h1 class="brand"><span>FPV · liens utiles</span><span class="subtitle">Configurer un drone : radio, firmware, ESC, outils</span></h1>
+    <a class="pill" href="./">Terrain</a>
+    <button class="iconbtn" id="theme" type="button" aria-label="Thème : automatique" title="Thème : automatique">◐</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <nav class="chips" aria-label="Sections">
+    <a href="#elrs">📡 Radio · ExpressLRS</a>
+    <a href="#edgetx">🎮 Radio · EdgeTX</a>
+    <a href="#betaflight">🛩️ Betaflight</a>
+    <a href="#inav">🧭 INAV</a>
+    <a href="#ardupilot">🛰️ ArduPilot</a>
+    <a href="#esc">⚙️ ESC</a>
+    <a href="#outils">🔬 Analyse et outils</a>
+    <a href="#video">📷 Vidéo</a>
+    <a href="#ref">🇫🇷 Réglementation et communauté</a>
+  </nav>
+  <p class="intro">96 liens vérifiés dans 9 rubriques : documentation officielle et outils pour la radio, le contrôleur de vol, les ESC et l'analyse.</p>
+
+  <details class="cat" id="elrs" open>
+    <summary><span class="ic" aria-hidden="true">📡</span><span class="nm">Radio · ExpressLRS</span><span class="n">18</span></summary>
+    <ul class="links">
+      <li><a class="lk" href="https://www.expresslrs.org/"><span class="t">ExpressLRS</span><span class="d">Site officiel et documentation</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/quick-start/getting-started/"><span class="t">Démarrage rapide</span><span class="d">Les étapes de la première mise en route</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/hardware/hardware-selection/"><span class="t">Choisir son matériel</span><span class="d">Émetteurs, modules et récepteurs compatibles</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/quick-start/installing-configurator/"><span class="t">Installer le Configurator</span><span class="d">L&#x27;outil pour flasher et régler émetteurs et récepteurs</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://github.com/ExpressLRS/ExpressLRS-Configurator/releases"><span class="t">ExpressLRS Configurator</span><span class="d">Téléchargements (releases GitHub)</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/quick-start/transmitters/tx-prep/"><span class="t">Préparer l&#x27;émetteur</span><span class="d">Module ou radio ELRS : mise à jour et réglages</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/quick-start/transmitters/lua-howto/"><span class="t">Script Lua</span><span class="d">Régler ExpressLRS depuis la radio</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/quick-start/binding/"><span class="t">Appairage (binding)</span><span class="d">Phrase de binding et procédure</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/quick-start/receivers/wiring-up/"><span class="t">Câbler un récepteur</span><span class="d">Branchement au contrôleur de vol</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/quick-start/receivers/configuring-fc/"><span class="t">Régler le contrôleur de vol</span><span class="d">Configuration du FC pour un récepteur ELRS</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/quick-start/receivers/updating/"><span class="t">Mettre à jour un récepteur</span><span class="d">Flasher le firmware d&#x27;un récepteur</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/quick-start/firmware-options/"><span class="t">Options de firmware</span><span class="d">Les options de compilation et leurs effets</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/info/signal-health/"><span class="t">Qualité du signal</span><span class="d">Comprendre LQ, RSSI et SNR</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/software/dynamic-transmit-power/"><span class="t">Puissance dynamique</span><span class="d">Ajuster la puissance d&#x27;émission en vol</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/software/model-config-match/"><span class="t">Model Match</span><span class="d">Éviter de piloter le mauvais modèle</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/quick-start/troubleshooting/"><span class="t">Dépannage</span><span class="d">Les problèmes courants et leurs solutions</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://www.expresslrs.org/faq/"><span class="t">FAQ</span><span class="d">Questions fréquentes</span><span class="h">expresslrs.org</span></a></li>
+      <li><a class="lk" href="https://github.com/ExpressLRS/ExpressLRS"><span class="t">ExpressLRS sur GitHub</span><span class="d">Code source et releases du firmware</span><span class="h">github.com</span></a></li>
+    </ul>
+  </details>
+  <details class="cat" id="edgetx" open>
+    <summary><span class="ic" aria-hidden="true">🎮</span><span class="nm">Radio · EdgeTX</span><span class="n">4</span></summary>
+    <ul class="links">
+      <li><a class="lk" href="https://edgetx.org/"><span class="t">EdgeTX</span><span class="d">Site officiel du firmware de radio</span><span class="h">edgetx.org</span></a></li>
+      <li><a class="lk" href="https://manual.edgetx.org/"><span class="t">Manuel EdgeTX</span><span class="d">La documentation complète</span><span class="h">manual.edgetx.org</span></a></li>
+      <li><a class="lk" href="https://buddy.edgetx.org/"><span class="t">EdgeTX Buddy</span><span class="d">Préparer la carte SD et flasher la radio</span><span class="h">buddy.edgetx.org</span></a></li>
+      <li><a class="lk" href="https://github.com/EdgeTX/edgetx/releases"><span class="t">Releases EdgeTX</span><span class="d">Firmwares et Companion</span><span class="h">github.com</span></a></li>
+    </ul>
+  </details>
+  <details class="cat" id="betaflight" open>
+    <summary><span class="ic" aria-hidden="true">🛩️</span><span class="nm">Betaflight</span><span class="n">24</span></summary>
+    <ul class="links">
+      <li><a class="lk" href="https://betaflight.com/"><span class="t">Betaflight</span><span class="d">Site officiel</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki"><span class="t">Wiki et documentation</span><span class="d">Guides de configuration et de réglage</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://app.betaflight.com/"><span class="t">Configurator en ligne</span><span class="d">Le Configurator dans le navigateur</span><span class="h">app.betaflight.com</span></a></li>
+      <li><a class="lk" href="https://github.com/betaflight/betaflight-configurator/releases"><span class="t">Configurator (releases)</span><span class="d">Application de bureau, toutes versions</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/betaflight/betaflight"><span class="t">Betaflight sur GitHub</span><span class="d">Code source et firmware</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/release/Betaflight-2026-6-Release-Notes"><span class="t">Notes de version 2026.6</span><span class="d">Ce qui change dans la dernière version</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/getting-started/setup-guide"><span class="t">Guide de mise en route</span><span class="d">De la première connexion au premier vol</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Modes"><span class="t">Modes</span><span class="d">Armement et modes de vol sur les interrupteurs</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Failsafe"><span class="t">Failsafe</span><span class="d">Que fait le drone quand il perd la radio</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Arming-Sequence-And-Safety"><span class="t">Armement et sécurité</span><span class="d">Séquence d&#x27;armement et protections</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Dshot"><span class="t">DShot</span><span class="d">Protocole numérique des moteurs</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/DSHOT-RPM-Filtering"><span class="t">Filtrage RPM DShot</span><span class="d">Filtres basés sur la vitesse des moteurs</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Reversed-motor-direction"><span class="t">Sens des moteurs</span><span class="d">Inverser la rotation sans ressouder</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/PID-Tuning-Guide"><span class="t">Réglage des PID</span><span class="d">Le guide de référence</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/tuning/4-3-Tuning-Notes"><span class="t">Notes de réglage 4.3</span><span class="d">Notes de réglage pour la version 4.3</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Rate-Calculator"><span class="t">Calculateur de rates</span><span class="d">Visualiser et choisir ses courbes de rates</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/OSD-Profiles"><span class="t">OSD</span><span class="d">Profils d&#x27;OSD et éléments affichés</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/VTX"><span class="t">VTX</span><span class="d">Régler l&#x27;émetteur vidéo depuis le FC</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Serial-BlackBox-Logging"><span class="t">Blackbox sur port série</span><span class="d">Enregistrer les logs de vol</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://blackbox.betaflight.com/"><span class="t">Blackbox Explorer</span><span class="d">Lire les logs de vol dans le navigateur</span><span class="h">blackbox.betaflight.com</span></a></li>
+      <li><a class="lk" href="https://github.com/betaflight/blackbox-log-viewer"><span class="t">Blackbox Explorer (GitHub)</span><span class="d">Version de bureau et code source</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/USB-Flashing"><span class="t">Flasher par USB</span><span class="d">Mettre à jour le firmware en USB et DFU</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://betaflight.com/docs/wiki/guides/current/Setup-for-a-Fixed-Wing-Aircraft"><span class="t">Aile fixe</span><span class="d">Betaflight sur un avion</span><span class="h">betaflight.com</span></a></li>
+      <li><a class="lk" href="https://github.com/emuflight/EmuFlight"><span class="t">EmuFlight</span><span class="d">Le fork orienté freestyle</span><span class="h">github.com</span></a></li>
+    </ul>
+  </details>
+  <details class="cat" id="inav" open>
+    <summary><span class="ic" aria-hidden="true">🧭</span><span class="nm">INAV</span><span class="n">12</span></summary>
+    <ul class="links">
+      <li><a class="lk" href="https://inavflight.github.io/"><span class="t">INAV</span><span class="d">Site officiel</span><span class="h">inavflight.github.io</span></a></li>
+      <li><a class="lk" href="https://github.com/iNavFlight/inav/wiki"><span class="t">Wiki INAV</span><span class="d">La documentation</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/iNavFlight/inav-configurator/releases"><span class="t">Configurator (releases)</span><span class="d">Téléchargements du Configurator</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/iNavFlight/inav"><span class="t">INAV sur GitHub</span><span class="d">Code source et firmware</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/iNavFlight/inav/blob/master/docs/Settings.md"><span class="t">Liste des paramètres</span><span class="d">Tous les réglages de la ligne de commande</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/iNavFlight/inav/wiki/Modes"><span class="t">Modes</span><span class="d">Modes de vol et interrupteurs</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/iNavFlight/inav/wiki/Navigation-modes"><span class="t">Modes de navigation</span><span class="d">Retour maison, maintien de position, missions</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/iNavFlight/inav/wiki/Failsafe"><span class="t">Failsafe</span><span class="d">Comportement en cas de perte de signal</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/iNavFlight/inav/wiki/Fixed-Wing-Guide"><span class="t">Guide de l&#x27;aile fixe</span><span class="d">Mise en route d&#x27;un avion</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/iNavFlight/inav/wiki/Sensor-Calibration"><span class="t">Calibration des capteurs</span><span class="d">Accéléromètre, boussole, baromètre</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/iNavFlight/inav/wiki/Safety"><span class="t">Sécurité</span><span class="d">Les précautions avant de voler</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/iNavFlight/blackbox-log-viewer"><span class="t">Blackbox log viewer</span><span class="d">Lire les logs de vol</span><span class="h">github.com</span></a></li>
+    </ul>
+  </details>
+  <details class="cat" id="ardupilot" open>
+    <summary><span class="ic" aria-hidden="true">🛰️</span><span class="nm">ArduPilot</span><span class="n">14</span></summary>
+    <ul class="links">
+      <li><a class="lk" href="https://ardupilot.org/"><span class="t">ArduPilot</span><span class="d">Site officiel</span><span class="h">ardupilot.org</span></a></li>
+      <li><a class="lk" href="https://ardupilot.org/copter/"><span class="t">Copter</span><span class="d">Documentation multirotors</span><span class="h">ardupilot.org</span></a></li>
+      <li><a class="lk" href="https://ardupilot.org/plane/"><span class="t">Plane</span><span class="d">Documentation avions</span><span class="h">ardupilot.org</span></a></li>
+      <li><a class="lk" href="https://ardupilot.org/rover/"><span class="t">Rover</span><span class="d">Documentation véhicules terrestres et bateaux</span><span class="h">ardupilot.org</span></a></li>
+      <li><a class="lk" href="https://ardupilot.org/planner/"><span class="t">Mission Planner</span><span class="d">La station sol de référence (Windows)</span><span class="h">ardupilot.org</span></a></li>
+      <li><a class="lk" href="https://qgroundcontrol.com/"><span class="t">QGroundControl</span><span class="d">Station sol multiplateforme</span><span class="h">qgroundcontrol.com</span></a></li>
+      <li><a class="lk" href="https://firmware.ardupilot.org/"><span class="t">Firmwares</span><span class="d">Téléchargement des versions et des cibles</span><span class="h">firmware.ardupilot.org</span></a></li>
+      <li><a class="lk" href="https://ardupilot.org/copter/docs/parameters.html"><span class="t">Liste des paramètres</span><span class="d">Tous les paramètres de Copter</span><span class="h">ardupilot.org</span></a></li>
+      <li><a class="lk" href="https://ardupilot.org/copter/docs/common-autopilots.html"><span class="t">Contrôleurs compatibles</span><span class="d">Les cartes supportées</span><span class="h">ardupilot.org</span></a></li>
+      <li><a class="lk" href="https://ardupilot.org/copter/docs/initial-tuning-flight.html"><span class="t">Premier vol de réglage</span><span class="d">Réglages initiaux avant le premier vrai vol</span><span class="h">ardupilot.org</span></a></li>
+      <li><a class="lk" href="https://ardupilot.org/copter/docs/common-crsf-telemetry.html"><span class="t">Télémétrie CRSF</span><span class="d">Radio et télémétrie via CRSF (ExpressLRS, Crossfire)</span><span class="h">ardupilot.org</span></a></li>
+      <li><a class="lk" href="https://ardupilot.org/mavproxy/"><span class="t">MAVProxy</span><span class="d">Station sol en ligne de commande</span><span class="h">ardupilot.org</span></a></li>
+      <li><a class="lk" href="https://ardupilot.github.io/MethodicConfigurator/"><span class="t">Methodic Configurator</span><span class="d">Régler les paramètres étape par étape</span><span class="h">ardupilot.github.io</span></a></li>
+      <li><a class="lk" href="https://discuss.ardupilot.org/"><span class="t">Forum ArduPilot</span><span class="d">Entraide et discussions</span><span class="h">discuss.ardupilot.org</span></a></li>
+    </ul>
+  </details>
+  <details class="cat" id="esc" open>
+    <summary><span class="ic" aria-hidden="true">⚙️</span><span class="nm">ESC</span><span class="n">8</span></summary>
+    <ul class="links">
+      <li><a class="lk" href="https://esc-configurator.com/"><span class="t">ESC Configurator</span><span class="d">Configurateur web pour Bluejay, BLHeli_S et AM32</span><span class="h">esc-configurator.com</span></a></li>
+      <li><a class="lk" href="https://github.com/bird-sanctuary/bluejay"><span class="t">Bluejay</span><span class="d">Firmware ouvert pour les ESC BLHeli_S</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/bird-sanctuary/bluejay/wiki"><span class="t">Wiki Bluejay</span><span class="d">Installation et réglages</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://am32.ca/"><span class="t">AM32</span><span class="d">Site du firmware d&#x27;ESC ouvert</span><span class="h">am32.ca</span></a></li>
+      <li><a class="lk" href="https://github.com/am32-firmware/AM32"><span class="t">AM32 sur GitHub</span><span class="d">Code source et releases</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/am32-firmware/AM32/wiki"><span class="t">Wiki AM32</span><span class="d">Documentation et cartes supportées</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/bitdump/BLHeli"><span class="t">BLHeli</span><span class="d">Dépôt BLHeli et BLHeli_S</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/bitdump/BLHeli/releases"><span class="t">BLHeli (releases)</span><span class="d">BLHeliSuite et firmwares</span><span class="h">github.com</span></a></li>
+    </ul>
+  </details>
+  <details class="cat" id="outils" open>
+    <summary><span class="ic" aria-hidden="true">🔬</span><span class="nm">Analyse et outils</span><span class="n">8</span></summary>
+    <ul class="links">
+      <li><a class="lk" href="https://github.com/lstux/FPVTools"><span class="t">FPVTools</span><span class="d">Mes scripts d&#x27;installation des outils FPV sous Linux</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://gyroflow.xyz/"><span class="t">Gyroflow</span><span class="d">Stabilisation vidéo à partir des données du gyroscope</span><span class="h">gyroflow.xyz</span></a></li>
+      <li><a class="lk" href="https://github.com/gyroflow/gyroflow"><span class="t">Gyroflow sur GitHub</span><span class="d">Code source et releases</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/Plasmatree/PID-Analyzer"><span class="t">PID-Analyzer</span><span class="d">Analyser la réponse des PID depuis un log Blackbox</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://www.ecalc.ch/"><span class="t">eCalc</span><span class="d">Calculs de motorisation, de poussée et d&#x27;autonomie</span><span class="h">ecalc.ch</span></a></li>
+      <li><a class="lk" href="https://zadig.akeo.ie/"><span class="t">Zadig</span><span class="d">Pilote USB pour le mode DFU sous Windows</span><span class="h">zadig.akeo.ie</span></a></li>
+      <li><a class="lk" href="https://oscarliang.com/"><span class="t">Oscar Liang</span><span class="d">Tutoriels et guides FPV</span><span class="h">oscarliang.com</span></a></li>
+      <li><a class="lk" href="https://www.youtube.com/@JoshuaBardwell"><span class="t">Joshua Bardwell</span><span class="d">Vidéos de réglage et de dépannage</span><span class="h">youtube.com</span></a></li>
+    </ul>
+  </details>
+  <details class="cat" id="video" open>
+    <summary><span class="ic" aria-hidden="true">📷</span><span class="nm">Vidéo</span><span class="n">3</span></summary>
+    <ul class="links">
+      <li><a class="lk" href="https://www.hd-zero.com/"><span class="t">HDZero</span><span class="d">Système vidéo numérique à très faible latence</span><span class="h">hd-zero.com</span></a></li>
+      <li><a class="lk" href="https://walksnail.app/"><span class="t">Walksnail</span><span class="d">Système vidéo numérique HD</span><span class="h">walksnail.app</span></a></li>
+      <li><a class="lk" href="https://openipc.org/"><span class="t">OpenIPC</span><span class="d">Firmware ouvert pour caméras et émetteurs vidéo</span><span class="h">openipc.org</span></a></li>
+    </ul>
+  </details>
+  <details class="cat" id="ref" open>
+    <summary><span class="ic" aria-hidden="true">🇫🇷</span><span class="nm">Réglementation et communauté</span><span class="n">5</span></summary>
+    <ul class="links">
+      <li><a class="lk" href="https://alphatango.aviation-civile.gouv.fr/"><span class="t">AlphaTango</span><span class="d">Portail de la DGAC : enregistrement exploitant et pilote</span><span class="h">alphatango.aviation-civile.gouv.fr</span></a></li>
+      <li><a class="lk" href="https://www.geoportail.gouv.fr/donnees/restrictions-uas-categorie-ouverte-et-aeromodelisme"><span class="t">Zones de restriction</span><span class="d">Carte Géoportail : catégorie ouverte et aéromodélisme</span><span class="h">geoportail.gouv.fr</span></a></li>
+      <li><a class="lk" href="https://www.ffam.asso.fr/"><span class="t">FFAM</span><span class="d">Fédération française d&#x27;aéromodélisme</span><span class="h">ffam.asso.fr</span></a></li>
+      <li><a class="lk" href="https://intofpv.com/"><span class="t">IntoFPV</span><span class="d">Forum de la communauté FPV</span><span class="h">intofpv.com</span></a></li>
+      <li><a class="lk" href="https://www.velocidrone.com/"><span class="t">VelociDrone</span><span class="d">Simulateur de drone FPV</span><span class="h">velocidrone.com</span></a></li>
+    </ul>
+  </details>
+
+  <footer>
+    Liens vérifiés le 6 novembre 2026. Un lien cassé ? <code>./check-links.sh</code> les revérifie tous.
+  </footer>
+</main>
+
+<script>
+(function(){
+  var root=document.documentElement, KEY="fpv-links-theme";
+  function load(){try{return localStorage.getItem(KEY)}catch(e){return null}}
+  function save(v){try{if(v)localStorage.setItem(KEY,v);else localStorage.removeItem(KEY)}catch(e){}}
+
+  /* Thème : automatique (système) -> sombre -> clair */
+  var btn=document.getElementById("theme");
+  var names={"":"automatique",dark:"sombre",light:"clair"};
+  function paint(){
+    var cur=root.getAttribute("data-theme")||"";
+    var txt="Thème : "+names[cur];
+    btn.setAttribute("aria-label",txt); btn.title=txt;
+    btn.textContent=cur==="dark"?"☾":cur==="light"?"☀":"◐";
+  }
+  var saved=load(); if(saved==="dark"||saved==="light") root.setAttribute("data-theme",saved);
+  btn.addEventListener("click",function(){
+    var cur=root.getAttribute("data-theme")||"";
+    var next=cur===""?"dark":cur==="dark"?"light":"";
+    if(next)root.setAttribute("data-theme",next); else root.removeAttribute("data-theme");
+    save(next); paint();
+  });
+  paint();
+
+  /* Petits écrans : rubriques repliées, on ouvre celle qu'on choisit (sans JavaScript, tout reste ouvert) */
+  var cats=[].slice.call(document.querySelectorAll("details.cat"));
+  if(window.matchMedia&&window.matchMedia("(max-width:520px)").matches) cats.forEach(function(d){d.open=false});
+  function openHash(){
+    var id=decodeURIComponent(location.hash.slice(1)); if(!id)return;
+    var d=document.getElementById(id);
+    if(d&&d.tagName==="DETAILS"){d.open=true; d.scrollIntoView()}
+  }
+  window.addEventListener("hashchange",openHash);
+  openHash();
+  /* Le même choix deux fois de suite ne déclenche pas hashchange : on rouvre à la main. */
+  [].forEach.call(document.querySelectorAll(".chips a"),function(a){
+    a.addEventListener("click",function(){
+      var d=document.getElementById(a.getAttribute("href").slice(1)); if(d)d.open=true;
+    });
+  });
+})();
+</script>
+</body>
+</html>
