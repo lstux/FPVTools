@@ -25,22 +25,31 @@
     "border:1px solid var(--line,#ccc);background:var(--card2,#eee);color:var(--fg,#111);font:inherit;font-size:1.5rem;" +
     "line-height:1;opacity:.93;box-shadow:0 2px 10px #0004;cursor:pointer}" +
     ".kb:active{background:var(--ac-soft,#ddd)}" +
-    ".kb-up{bottom:5rem}.kb-down{bottom:1rem}";
+    ".kb:disabled{opacity:.35}" +
+    ".kb-back{bottom:9rem}.kb-up{bottom:5rem}.kb-down{bottom:1rem}" +
+    /* cibles plus grandes : le pointeur d'un écran résistif n'est pas précis */
+    ".kiosk .btn,.kiosk .pill,.kiosk .iconbtn,.kiosk .lk,.kiosk details.cat>summary{min-height:3.4rem}" +
+    ".kiosk .iconbtn{width:3.4rem;height:3.4rem}";
   document.head.appendChild(css);
 
   function scrollPage(dir) {
     window.scrollBy({ top: dir * Math.round(window.innerHeight * 0.8), behavior: "smooth" });
   }
-  function button(cls, label, text, dir) {
+  function button(cls, label, text, action) {
     var b = document.createElement("button");
     b.type = "button"; b.className = "kb " + cls; b.textContent = text;
     b.setAttribute("aria-label", label); b.title = label;
-    b.addEventListener("click", function () { scrollPage(dir); });
+    b.addEventListener("click", action);
     document.body.appendChild(b);
+    return b;
   }
   function buttons() {
-    button("kb-up", "Défiler vers le haut", "▲", -1);
-    button("kb-down", "Défiler vers le bas", "▼", 1);
+    /* Retour à la page précédente (le kiosque n'a pas de barre d'adresse ni de bouton retour) */
+    var back = button("kb-back", "Page précédente", "◀", function () { history.back(); });
+    back.disabled = history.length <= 1;
+    window.addEventListener("pageshow", function () { back.disabled = history.length <= 1; });
+    button("kb-up", "Défiler vers le haut", "▲", function () { scrollPage(-1); });
+    button("kb-down", "Défiler vers le bas", "▼", function () { scrollPage(1); });
   }
   if (document.body) buttons(); else document.addEventListener("DOMContentLoaded", buttons);
 
