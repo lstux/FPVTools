@@ -13,6 +13,7 @@
   if (m) set(m[1] === "0" || m[1] === "off" ? null : "1");
   if (get() !== "1") return;
 
+  /* Chargé dans <head>, avant les scripts de la page : ils réécrivent l'adresse (?lat=…) et feraient perdre ?kiosk */
   var root = document.documentElement;
   root.classList.add("kiosk");
   var css = document.createElement("style");
@@ -37,8 +38,11 @@
     b.addEventListener("click", function () { scrollPage(dir); });
     document.body.appendChild(b);
   }
-  button("kb-up", "Défiler vers le haut", "▲", -1);
-  button("kb-down", "Défiler vers le bas", "▼", 1);
+  function buttons() {
+    button("kb-up", "Défiler vers le haut", "▲", -1);
+    button("kb-down", "Défiler vers le bas", "▼", 1);
+  }
+  if (document.body) buttons(); else document.addEventListener("DOMContentLoaded", buttons);
 
   /* Glisser pour défiler, appui à peine déplacé = clic */
   var DRAG = 14;          /* pixels avant de considérer un glissement */
