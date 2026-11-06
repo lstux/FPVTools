@@ -10,9 +10,10 @@
   const STALE_S = { gps: 3, rf: 3, bat: 5, att: 2, trk: 3, baro: 3, vario: 3 };
 
   // ------------------------------------------------------------------------------ preferences
+  const KIOSK = !!window.ESPTRACKER_KIOSK;
   const PREF_DEFAULTS = {
     video: null, localcam: '', mapstyle: 'night', altref: 'auto', cells: 'auto', lowcell: 3.5,
-    windwarn: 25, windmax: 40, swapped: false,
+    windwarn: 25, windmax: 40, swapped: false, hudfps: KIOSK ? 30 : 60,
   };
   const prefs = Object.assign({}, PREF_DEFAULTS);
   try { Object.assign(prefs, JSON.parse(localStorage.getItem('esptracker.prefs') || '{}')); } catch (_) { /* private mode */ }
@@ -42,6 +43,21 @@
     mp.classList.toggle('pip-pane', videoMain);
     $('app').classList.toggle('video-main', videoMain);
     if (map) setTimeout(() => map.invalidateSize(), 50);
+  }
+
+  function swapViews() {
+    prefs.swapped = !prefs.swapped;
+    savePrefs();
+    applyLayout();
+  }
+
+  // the view to come back to in flight: video (or horizon) in front, no panel, map following the drone
+  function homeView() {
+    if (placingHome) setPlacingHome(false);
+    openPanel(null);
+    if (prefs.swapped) swapViews();
+    setFollow(true);
+    if (state && state.gps && map) map.panTo([state.gps.lat, state.gps.lon], { animate: false });
   }
 
   function openPanel(name) {
@@ -157,11 +173,22 @@
   function wireControls() {
     document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => openPanel(b.dataset.panel)));
     $('drawer-close').onclick = () => openPanel(null);
-    document.querySelectorAll('[data-swap]').forEach((b) => (b.onclick = () => { prefs.swapped = !prefs.swapped; savePrefs(); applyLayout(); }));
+    document.querySelectorAll('[data-swap]').forEach((b) => (b.onclick = swapViews));
+    // Keys: a keyboard, or the push buttons of the Raspberry Pi kiosk (GPIO keys: Back, Page Down, Home)
+    const PANELS = ['tracker', 'weather', 'link', 'console', 'display'];
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { if (placingHome) setPlacingHome(false); else openPanel(null); }
+      if (e.key === 'Escape' || e.key === 'BrowserBack') {
+        e.preventDefault();
+        if (placingHome) setPlacingHome(false); else openPanel(null);
+        return;
+      }
+      if (e.key === 'BrowserHome') { e.preventDefault(); homeView(); return; }
+      if (e.key === 'PageDown') { e.preventDefault(); swapViews(); return; }
       if (e.target.closest && e.target.closest('input, select, textarea')) return;
-      if (e.key === 's' || e.key === 'S') { prefs.swapped = !prefs.swapped; savePrefs(); applyLayout(); }
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      if (e.key === 's' || e.key === 'S') swapViews();
+      else if (e.key === 'h' || e.key === 'H') homeView();
+      else if (e.key >= '1' && e.key <= '5') openPanel(PANELS[Number(e.key) - 1]);
     });
 
     $('btn-follow').onclick = () => {
@@ -250,6 +277,9 @@
     numPref('in-lowcell', 'lowcell');
     numPref('in-windwarn', 'windwarn');
     numPref('in-windmax', 'windmax');
+    $('sel-hudfps').value = String(prefs.hudfps);
+    $('sel-hudfps').onchange = () => { prefs.hudfps = Number($('sel-hudfps').value); savePrefs(); };
+    $('btn-fullscreen').classList.toggle('hidden', KIOSK);
     $('btn-fullscreen').onclick = () => {
       if (document.fullscreenElement) document.exitFullscreen();
       else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
@@ -536,6 +566,9 @@
   const SMOOTH = ['pitch', 'roll', 'heading', 'speed', 'alt', 'vs'];
 
   function hudLoop(t) {
+    requestAnimationFrame(hudLoop);
+    // frame rate cap: the canvas is redrawn at most `hudfps` times a second (keeps a Pi 3B free for the video)
+    if (t - lastFrame < 1000 / (prefs.hudfps || 60) - 4) return;
     const dt = Math.min(0.25, (t - lastFrame) / 1000);
     lastFrame = t;
     const k = reducedMotion ? 1 : 1 - Math.exp(-dt / 0.12);
@@ -557,7 +590,6 @@
     }
     hudNow.blink = reducedMotion ? true : Math.floor(t / 450) % 2 === 0;
     Hud.draw($('hud'), hudNow);
-    requestAnimationFrame(hudLoop);
   }
 
   // ------------------------------------------------------------------------------ video
