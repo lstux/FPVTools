@@ -229,3 +229,17 @@ a { color: var(--cyan); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }
 }
+
+/* ------------------------------------------------------------------ kiosk (Raspberry Pi touch screen, ?kiosk) */
+.kiosk, .kiosk body { -webkit-user-select: none; user-select: none; }
+.kiosk input, .kiosk textarea { -webkit-user-select: text; user-select: text; }
+/* the pointer of a resistive screen is not precise: bigger targets */
+.kiosk button, .kiosk .button, .kiosk select, .kiosk input { min-height: 42px; }
+.kiosk button, .kiosk .button { padding: 8px 14px; }
+.kiosk .tabs button { padding: 8px 12px; font-size: 15px; }
+.kiosk .drawer-head button { width: 48px; height: 48px; font-size: 20px; }
+.kiosk #maptools button { min-width: 64px; }
+.kiosk .leaflet-bar a { width: 40px; height: 40px; line-height: 40px; font-size: 22px; }
+.kiosk input[type="range"] { height: 42px; }
+.kiosk #drawer { scrollbar-width: none; }
+.keys dd { font-family: var(--ui); color: var(--muted); }

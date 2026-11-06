@@ -217,6 +217,30 @@ sunrise/sunset, then the next 12 hours. Colours follow the two wind thresholds y
 The last forecast is saved on disk. At a field without internet the panel shows it with its age (fetch it at home before
 leaving, it covers the next 48 hours).
 
+### Raspberry Pi with a touch screen (kiosk)
+
+A Raspberry Pi 3B with a 10.1" HDMI touch screen (1024×600) makes a self-contained ground station: the tracker and the
+HDMI capture dongle on its USB ports, Chromium full screen on the cockpit. The image is prepared by
+[`gen2install/DietPi/DietPi_Customize.sh`](https://github.com/lstux/gen2install/tree/main/DietPi) with `-G on`: it
+installs ffmpeg and this backend on the first boot, runs it as a service and opens the kiosk on it.
+
+Kiosk mode itself is a page option: open the UI once with `?kiosk` (the browser remembers it, `?kiosk=0` turns it off).
+It makes the targets bigger for a resistive touch screen (whose pointer moves a few pixels between press and release:
+a press released slightly off a button still clicks it), lets you drag the side panel to scroll it, hides the
+full-screen button and draws the HUD 30 times a second instead of 60 (*Display → HUD refresh*), which leaves the Pi 3B's
+CPU to the video. Keys, from a keyboard or the Pi's push buttons:
+
+| Action | Keys | Pi push button (GPIO keys of the kiosk image) |
+| --- | --- | --- |
+| Swap video and map | `S`, Page Down | GPIO27 |
+| Close the panel | Esc, Back | GPIO22 |
+| Back to the main view (video in front, no panel, map following) | `H`, Home | GPIO17 |
+| Open a panel: Tracker, Weather, Link, Console, Display | `1` … `5` | |
+| Reload the page (long press: power off) | | GPIO23 |
+
+On a Pi 3B the browser decodes the MJPEG video in software: keep the capture at 1280×720 (or 1024×576 if the dongle
+offers it) and 30 fps; 1080p is too much for it.
+
 ### Offline maps
 
 Online maps use OpenStreetMap tiles (see the [tile usage policy](https://operations.osmfoundation.org/policies/tiles/);

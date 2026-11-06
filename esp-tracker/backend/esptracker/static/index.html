@@ -7,6 +7,7 @@
   <title>ESP Tracker ground station</title>
   <link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/kiosk.js"></script>
 </head>
 <body>
 <div id="app" class="video-main">
@@ -263,8 +264,23 @@
           <label>Wind limit (km/h) <input id="in-windmax" type="number" step="1" min="5" max="200"></label>
         </div>
         <div class="row">
+          <label>HUD refresh
+            <select id="sel-hudfps">
+              <option value="60">Smooth (60 /s)</option>
+              <option value="30">Light (30 /s)</option>
+              <option value="15">Very light (15 /s)</option>
+            </select>
+          </label>
           <button id="btn-fullscreen" class="quiet">Full screen</button>
         </div>
+        <h3>Keys</h3>
+        <dl class="readout compact keys">
+          <dt>Swap video and map</dt><dd>S, Page Down</dd>
+          <dt>Close the panel</dt><dd>Esc, Back</dd>
+          <dt>Back to the main view</dt><dd>H, Home</dd>
+          <dt>Open a panel</dt><dd>1 to 5</dd>
+        </dl>
+        <p class="fine">Kiosk mode (touch screen of a Raspberry Pi): open the page once with <code>?kiosk</code>, <code>?kiosk=0</code> turns it off.</p>
       </section>
     </aside>
   </main>

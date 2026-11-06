@@ -230,3 +230,12 @@ def test_weather_endpoint_uses_home_then_drone(tmp_path):
 def test_weather_disabled(env):
     _st, _src, client = env
     assert client.get("/api/weather?lat=1&lon=1").status_code == 404
+
+
+def test_kiosk_script_is_served_and_loaded_first(env):
+    _st, _src, client = env
+    page = client.get("/").text
+    assert page.index("/static/kiosk.js") < page.index("/static/app.js")
+    assert page.index("/static/kiosk.js") < page.index("</head>")
+    r = client.get("/static/kiosk.js")
+    assert r.status_code == 200 and "esptracker-kiosk" in r.text
