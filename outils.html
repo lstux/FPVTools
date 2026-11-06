@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPV · outils</title>
+<meta name="description" content="Outils en ligne pour configurer un drone FPV depuis le navigateur : Betaflight, ESC, Blackbox, ExpressLRS.">
+<meta name="theme-color" content="#f7f5ff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f0c22" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235b4bff'/%3E%3Cstop offset='1' stop-color='%23e63b97'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='url%28%23g%29'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='4' stroke-linecap='round'%3E%3Cpath d='M22 22l20 20M42 22L22 42'/%3E%3Ccircle cx='19' cy='19' r='6'/%3E%3Ccircle cx='45' cy='19' r='6'/%3E%3Ccircle cx='19' cy='45' r='6'/%3E%3Ccircle cx='45' cy='45' r='6'/%3E%3C/g%3E%3Crect x='27' y='27' width='10' height='10' rx='3' fill='%23fff'/%3E%3C/svg%3E">
+<!--
+  Page autonome : tout le style et le script sont dans ce fichier, rien n'est chargé depuis l'extérieur.
+  Les variables de couleur et de rayon (--bg, --card, --ac, --grad…) sont celles de WebApps/code/common.css :
+  pour l'intégrer à WebApps, supprimer le bloc « Variables » ci-dessous et ajouter <link rel="stylesheet" href="common.css">.
+  Pensée pour les petits écrans (à partir de 240 px de large, écran tactile de kiosque) comme pour les grands.
+-->
+<style>
+/* Variables (identiques à common.css) ----------------------------------- */
+:root{
+  color-scheme:light;
+  --bg:#f7f5ff; --card:#ffffff; --card2:#efecfc; --fg:#1b1736; --mut:#6b6690; --mut2:#b3aed3; --line:#e5e1f6;
+  --ac:#5b4bff; --ac2:#e63b97; --ac3:#ffb020; --on-ac:#ffffff;
+  --glass:#f7f5ffd9; --shadow:0 1px 2px #2b1f8a14,0 8px 24px #2b1f8a14;
+  --ac-soft:color-mix(in srgb,var(--ac) 14%,var(--card));
+  --hover:color-mix(in srgb,var(--fg) 7%,transparent);
+  --grad:linear-gradient(135deg,var(--ac),var(--ac2));
+  --r-s:12px; --r-m:14px; --r-l:20px;
+  --f-ui:ui-rounded,"SF Pro Rounded",Nunito,"Varela Round",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  accent-color:var(--ac);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0f0c22; --card:#1a1633; --card2:#262048; --fg:#f2efff; --mut:#a29ccb; --mut2:#544d78; --line:#2f2858;
+    --ac:#8f7dff; --ac2:#ff6fb5; --ac3:#ffc247; --on-ac:#150b33;
+    --glass:#0f0c22d9; --shadow:0 1px 2px #0007,0 10px 28px #0005;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0f0c22; --card:#1a1633; --card2:#262048; --fg:#f2efff; --mut:#a29ccb; --mut2:#544d78; --line:#2f2858;
+  --ac:#8f7dff; --ac2:#ff6fb5; --ac3:#ffc247; --on-ac:#150b33;
+  --glass:#0f0c22d9; --shadow:0 1px 2px #0007,0 10px 28px #0005;
+}
+
+/* Base --------------------------------------------------------------------- */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; color:var(--fg); font:16px/1.45 var(--f-ui);
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, color-mix(in srgb,var(--ac) 14%,transparent), transparent 70%),
+    radial-gradient(50rem 28rem at -10% 10%, color-mix(in srgb,var(--ac2) 10%,transparent), transparent 70%),
+    var(--bg);
+  background-attachment:fixed;
+}
+.wrap{max-width:74rem; margin:0 auto; padding:0 clamp(.6rem,3vw,1.6rem) 3rem}
+
+/* Barre du haut ------------------------------------------------------------ */
+.topbar{position:sticky; top:0; z-index:5; background:var(--glass); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border-bottom:1px solid var(--line)}
+.topbar-in{max-width:74rem; margin:0 auto; padding:.6rem clamp(.6rem,3vw,1.6rem); display:flex; align-items:center; gap:.6rem}
+.brand{flex:1; min-width:0; margin:0; font-size:1.2rem; font-weight:800; letter-spacing:-.01em; line-height:1.15}
+.brand>span:first-child{background:var(--grad); -webkit-background-clip:text; background-clip:text; color:transparent}
+.subtitle{display:block; color:var(--mut); font-size:.78rem; font-weight:600; letter-spacing:0}
+.pill{flex:none; display:inline-flex; align-items:center; min-height:2.75rem; padding:0 1rem; border-radius:999px; background:var(--card2); color:var(--fg); text-decoration:none; font-weight:800; font-size:.9rem}
+.pill:hover{background:var(--hover)}
+.iconbtn{flex:none; width:2.75rem; height:2.75rem; border:0; border-radius:50%; background:var(--card2); color:var(--fg); font:inherit; font-size:1.1rem; cursor:pointer}
+.iconbtn:hover{background:var(--hover)}
+
+/* Navigation par pastilles -------------------------------------------------- */
+.chips{display:flex; flex-wrap:wrap; gap:.4rem; padding:.9rem 0 .3rem}
+.chips a{display:inline-block; padding:.5rem .85rem; border-radius:999px; background:var(--card); border:1px solid var(--line); color:var(--fg); text-decoration:none; font-size:.86rem; font-weight:700}
+.chips a:hover{border-color:var(--ac); background:var(--ac-soft)}
+.intro{margin:.2rem 0 .4rem; color:var(--mut); font-size:.92rem}
+
+/* Sections repliables ------------------------------------------------------- */
+details.cat{margin:.8rem 0; background:var(--card); border:1px solid var(--line); border-radius:var(--r-l); box-shadow:var(--shadow); scroll-margin-top:4.5rem}
+details.cat>summary{display:flex; align-items:center; gap:.6rem; padding:.85rem 1rem; min-height:3rem; cursor:pointer; list-style:none; font-weight:800; font-size:1.05rem}
+details.cat>summary::-webkit-details-marker{display:none}
+details.cat>summary::after{content:"›"; margin-left:auto; color:var(--mut); font-size:1.5rem; line-height:1; transition:transform .2s}
+details.cat[open]>summary::after{transform:rotate(90deg)}
+.ic{flex:none; width:1.8rem; text-align:center}
+.nm{min-width:0}
+.n{flex:none; padding:.05rem .5rem; border-radius:999px; background:var(--ac-soft); color:var(--ac); font-size:.78rem; font-weight:800}
+
+/* Liens ---------------------------------------------------------------------- */
+.links{list-style:none; margin:0; padding:0 .8rem .9rem; display:grid; gap:.5rem; grid-template-columns:repeat(auto-fill,minmax(min(100%,16rem),1fr))}
+.lk{display:block; height:100%; min-height:2.75rem; padding:.65rem .8rem; border-radius:var(--r-m); background:var(--card2); border:1px solid transparent; color:var(--fg); text-decoration:none}
+.lk:hover{border-color:var(--ac); background:var(--ac-soft)}
+.lk:focus-visible,.chips a:focus-visible,summary:focus-visible,.iconbtn:focus-visible{outline:3px solid var(--ac); outline-offset:2px}
+.lk .t{display:block; font-weight:700; overflow-wrap:anywhere}
+.lk .t::after{content:" ↗"; color:var(--ac); font-weight:600}
+.lk .d{display:block; margin-top:.1rem; color:var(--mut); font-size:.86rem; line-height:1.35}
+.lk .h{display:block; margin-top:.2rem; color:var(--mut2); font:.72rem var(--f-mono); overflow-wrap:anywhere}
+
+footer{margin-top:1.4rem; color:var(--mut); font-size:.8rem; text-align:center}
+footer code{font-family:var(--f-mono)}
+
+@media (max-width:360px){
+  .pill{padding:0 .6rem; font-size:.82rem}
+  .topbar-in{gap:.4rem}
+  body{font-size:15px}
+  .subtitle{display:none}
+  .chips a{padding:.45rem .7rem}
+  .links{padding:0 .5rem .6rem}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media print{.topbar,.chips{display:none} details.cat{box-shadow:none} details.cat:not([open])>*:not(summary){display:block}}
+
+/* Outils -------------------------------------------------------------------- */
+.status{margin:.8rem 0 .2rem; padding:.7rem .9rem; border-radius:var(--r-m); border:1px solid var(--line); background:var(--card); font-size:.9rem}
+.status strong{font-weight:800}
+.status.ok{border-color:color-mix(in srgb,#2fb36b 55%,var(--line))}
+.status.ko{border-color:color-mix(in srgb,var(--ac2) 60%,var(--line)); background:color-mix(in srgb,var(--ac2) 8%,var(--card))}
+.status ul{margin:.3rem 0 0; padding-left:1.1rem; color:var(--mut)}
+.tag{display:inline-block; margin:.35rem .3rem 0 0; padding:.05rem .5rem; border-radius:999px; background:var(--ac-soft); color:var(--ac); font-size:.72rem; font-weight:800}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-in">
+    <h1 class="brand"><span>FPV · outils</span><span class="subtitle">Configurer le drone depuis le navigateur</span></h1>
+    <a class="pill" href="./">Terrain</a>
+    <a class="pill" href="liens.html">Liens</a>
+    <button class="iconbtn" id="theme" type="button" aria-label="Thème : automatique" title="Thème : automatique">◐</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="intro">Ces outils tournent dans le navigateur et parlent au contrôleur de vol (ou au récepteur) branché en USB, grâce à WebSerial et WebUSB. Ils s'ouvrent dans un autre site : ce kiosque n'en garde aucune donnée.</p>
+  <div class="status" id="status" role="status">Vérification du navigateur…</div>
+
+  <details class="cat" id="web" open>
+    <summary><span class="ic" aria-hidden="true">🌐</span><span class="nm">Outils en ligne</span><span class="n">5</span></summary>
+    <ul class="links">
+      <li><a class="lk" href="https://app.betaflight.com/"><span class="t">Betaflight</span><span class="d">Le Configurator : réglages, modes, PID, mise à jour du firmware</span><span class="h">app.betaflight.com</span><span class="tag">USB série</span></a></li>
+      <li><a class="lk" href="https://blackbox.betaflight.com/"><span class="t">Blackbox Explorer</span><span class="d">Analyser les journaux de vol (blackbox) de Betaflight et INAV</span><span class="h">blackbox.betaflight.com</span><span class="tag">fichier</span></a></li>
+      <li><a class="lk" href="https://esc-configurator.com/"><span class="t">ESC Configurator</span><span class="d">Régler et flasher les ESC Bluejay, BLHeli_S et AM32</span><span class="h">esc-configurator.com</span><span class="tag">USB série</span></a></li>
+      <li><a class="lk" href="https://expresslrs.github.io/web-flasher/"><span class="t">ExpressLRS Web Flasher</span><span class="d">Flasher un récepteur ou un module ExpressLRS</span><span class="h">expresslrs.github.io</span><span class="tag">USB série</span></a></li>
+      <li><a class="lk" href="https://buddy.edgetx.org/"><span class="t">EdgeTX Buddy</span><span class="d">Préparer la carte SD et flasher la radio</span><span class="h">buddy.edgetx.org</span><span class="tag">USB</span></a></li>
+    </ul>
+  </details>
+  <details class="cat" id="app" open>
+    <summary><span class="ic" aria-hidden="true">💾</span><span class="nm">À installer (pas en ligne)</span><span class="n">3</span></summary>
+    <ul class="links">
+      <li><a class="lk" href="https://github.com/iNavFlight/inav-configurator/releases"><span class="t">INAV Configurator</span><span class="d">Application de bureau, une version par version du firmware (fichier linux_arm64 pour Raspberry Pi)</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/iNavFlight/blackbox-log-viewer/releases"><span class="t">INAV Blackbox Explorer</span><span class="d">Analyse des journaux de vol INAV</span><span class="h">github.com</span></a></li>
+      <li><a class="lk" href="https://github.com/ExpressLRS/ExpressLRS-Configurator/releases"><span class="t">ExpressLRS Configurator</span><span class="d">Version de bureau, pour compiler le firmware</span><span class="h">github.com</span></a></li>
+    </ul>
+  </details>
+
+  <footer>
+    Branche le contrôleur de vol en USB avant d'ouvrir un outil. Sous Linux, l'utilisateur doit être dans le groupe <code>dialout</code>.
+  </footer>
+</main>
+
+<script>
+(function(){
+  var root=document.documentElement, KEY="fpv-links-theme";
+  function load(){try{return localStorage.getItem(KEY)}catch(e){return null}}
+  function save(v){try{if(v)localStorage.setItem(KEY,v);else localStorage.removeItem(KEY)}catch(e){}}
+
+  /* Thème : automatique (système) -> sombre -> clair */
+  var btn=document.getElementById("theme");
+  var names={"":"automatique",dark:"sombre",light:"clair"};
+  function paint(){
+    var cur=root.getAttribute("data-theme")||"";
+    var txt="Thème : "+names[cur];
+    btn.setAttribute("aria-label",txt); btn.title=txt;
+    btn.textContent=cur==="dark"?"☾":cur==="light"?"☀":"◐";
+  }
+  var saved=load(); if(saved==="dark"||saved==="light") root.setAttribute("data-theme",saved);
+  btn.addEventListener("click",function(){
+    var cur=root.getAttribute("data-theme")||"";
+    var next=cur===""?"dark":cur==="dark"?"light":"";
+    if(next)root.setAttribute("data-theme",next); else root.removeAttribute("data-theme");
+    save(next); paint();
+  });
+  paint();
+
+  /* Ce navigateur sait-il parler aux ports USB ? (Chrome, Chromium, Edge : oui ; Firefox, Safari : non) */
+  var st=document.getElementById("status");
+  var serial="serial" in navigator, usb="usb" in navigator, secure=window.isSecureContext;
+  function line(ok,txt){var li=document.createElement("li"); li.textContent=(ok?"✓ ":"✗ ")+txt; return li}
+  var ul=document.createElement("ul");
+  ul.appendChild(line(serial,"WebSerial (contrôleurs de vol, récepteurs)"));
+  ul.appendChild(line(usb,"WebUSB (mise à jour DFU, radio)"));
+  ul.appendChild(line(secure,"Page sécurisée (https)"));
+  var ok=serial&&secure;
+  st.className="status "+(ok?"ok":"ko");
+  var strong=document.createElement("strong");
+  strong.textContent=ok?"Ce navigateur peut se connecter au drone.":"Ce navigateur ne pourra pas se connecter au drone.";
+  st.textContent="";
+  st.appendChild(strong);
+  if(!ok){st.appendChild(document.createTextNode(" Utilise Chrome, Chromium ou Edge sur ordinateur."))}
+  st.appendChild(ul);
+
+  /* Petits écrans : rubriques repliées, on ouvre celle qu'on choisit */
+  if(window.matchMedia&&window.matchMedia("(max-width:520px)").matches){
+    [].forEach.call(document.querySelectorAll("details.cat"),function(d,i){d.open=(i===0)});
+  }
+})();
+</script>
+</body>
+</html>

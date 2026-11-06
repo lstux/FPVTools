@@ -1,13 +1,13 @@
 #!/bin/sh
 # Vérifie que les liens http(s) des pages répondent (code 2xx, redirections suivies).
-# Usage : ./check-links.sh [page.html ...]   Sans argument : index.html et liens.html du dossier du script.
+# Usage : ./check-links.sh [page.html ...]   Sans argument : index.html, liens.html et outils.html du dossier du script.
 # Code de retour : 0 si tout répond, 1 sinon. Les adresses appelées par le script d'index.html (API météo, tuiles
 # de carte…) ne sont pas des liens href : elles ne sont pas vérifiées ici.
 # Un code 429 (trop de requêtes, fréquent sur GitHub) est réessayé quelques secondes plus tard.
 # Certains sites refusent les requêtes automatiques (403) alors qu'ils s'ouvrent très bien dans un navigateur :
 # à vérifier à la main avant de retirer un lien.
 set -eu
-if [ "$#" -eq 0 ]; then set -- "$(dirname "$0")/index.html" "$(dirname "$0")/liens.html"; fi
+if [ "$#" -eq 0 ]; then set -- "$(dirname "$0")/index.html" "$(dirname "$0")/liens.html" "$(dirname "$0")/outils.html"; fi
 for PAGE in "$@"; do [ -r "${PAGE}" ] || { echo "Erreur : ${PAGE} illisible" >&2; exit 2; }; done
 export UA="Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0"
 
