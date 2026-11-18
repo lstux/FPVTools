@@ -141,7 +141,7 @@ def create_app(fleet: Fleet, photos_dir: Path, scanner: Scanner = scan_port, sim
     async def put_photo(drone_id: int, request: Request) -> Dict[str, Any]:
         kind = PHOTO_TYPES.get((request.headers.get("content-type") or "").split(";")[0].strip())
         if kind is None:
-            raise HTTPException(415, "send a jpeg, png or webp image as the request body")
+            raise HTTPException(415, "unsupported image format: use a JPEG, PNG or WebP photo")
         data = await request.body()
         if not data or len(data) > MAX_PHOTO_BYTES:
             raise HTTPException(413, "empty image or larger than 10 MB")
@@ -192,12 +192,12 @@ def create_app(fleet: Fleet, photos_dir: Path, scanner: Scanner = scan_port, sim
     # (declared before /api/snapshots/{id} so that "diff" is not taken for an id)
 
     @app.get("/api/snapshots/diff")
-    def snapshot_diff(a: int, b: int, context: int = 3) -> Dict[str, Any]:
+    def snapshot_diff(a: int, b: int, context: int = 3, calibration: bool = False) -> Dict[str, Any]:
         sa, sb = fleet.get_snapshot(a), fleet.get_snapshot(b)
         if sa is None or sb is None:
             raise HTTPException(404, "unknown snapshot")
         meta = lambda s: {k: s[k] for k in ("id", "drone_id", "taken_at", "firmware", "version", "board")}  # noqa: E731
-        out = side_by_side(sa["diff_text"], sb["diff_text"], context)
+        out = side_by_side(sa["diff_text"], sb["diff_text"], context, calibration)
         out.update(a=meta(sa), b=meta(sb))
         return out
 

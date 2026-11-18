@@ -6,7 +6,6 @@ component ``hint``, snapshots) live in separate columns, so a re-detection never
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sqlite3
 import threading
@@ -14,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .volatile import config_hash
 from .esc import describe as esc_describe
 from .esc import summary as esc_summary
 
@@ -323,8 +323,9 @@ class Fleet:
                     carried = split_esc_section(last["diff_text"])[1]
                     if carried:
                         norm += "\n" + carried
-                digest = hashlib.sha256(norm.encode()).hexdigest()
-                if last is None or last["hash"] != digest:
+                digest = config_hash(norm)
+                # recompute the last hash: snapshots saved by older versions hashed the raw text
+                if last is None or config_hash(last["diff_text"]) != digest:
                     cur = self._db.execute(
                         "INSERT INTO snapshot (drone_id, taken_at, firmware, version, board, craft_name, "
                         "hash, diff_text, status_text, info) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",

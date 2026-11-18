@@ -62,10 +62,11 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 /* ------------------------------------------------------------ bench bar */
 .bench-bar {
-  position: sticky; top: 0; z-index: 10;
+  /* opaque, and 1 px taller upwards: at fractional zoom levels a sticky bar at top: 0 can leave a
+     1 px sliver of the scrolling page visible above it */
+  position: sticky; top: -1px; z-index: 10;
   display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap;
-  padding: 12px 24px; background: color-mix(in srgb, var(--board) 92%, transparent);
-  backdrop-filter: blur(6px); border-bottom: 1px solid #000;
+  padding: 13px 24px 12px; background: var(--board); border-bottom: 1px solid #000;
   box-shadow: 0 1px 0 #ffffff0d, 0 8px 24px #0005;
 }
 .wordmark { display: flex; align-items: center; gap: 10px; color: var(--silk); font-size: var(--s2); letter-spacing: 0.02em; }
@@ -86,9 +87,10 @@ input[type="text"]:hover, textarea:hover, select:hover { border-color: #46524d; 
 input[type="text"]:focus, textarea:focus, select:focus { border-color: var(--gold); outline: none; box-shadow: 0 0 0 1px var(--gold); }
 textarea { font-family: var(--mono); font-size: var(--s0); line-height: 1.5; resize: vertical; width: 100%; }
 
-/* DIP switches */
-.dips { display: flex; gap: 6px; padding: 6px 8px; background: #b5372f; border-radius: 2px; box-shadow: inset 0 -2px 0 #0004; }
-.dip { position: relative; display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 2px 8px 2px 4px; }
+/* DIP switches: printed "ON" side up, like the real part, and the state spelled out next to it */
+.dips { display: flex; align-items: center; gap: 4px; padding: 5px 8px; background: #b5372f; border-radius: 2px; box-shadow: inset 0 -2px 0 #0004; }
+.dip-legend { font: 700 9px/1 var(--mono); color: #fff; text-align: center; opacity: 0.85; margin-right: 2px; }
+.dip { position: relative; display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 2px 8px 2px 4px; border-radius: 2px; }
 .dip input { position: absolute; opacity: 0; pointer-events: none; }
 .dip-switch {
   width: 14px; height: 26px; background: #ececec; border-radius: 1px; position: relative; flex: none;
@@ -98,10 +100,17 @@ textarea { font-family: var(--mono); font-size: var(--s0); line-height: 1.5; res
   content: ""; position: absolute; left: 2px; right: 2px; height: 10px; bottom: 2px; background: #3a3a3a;
   transition: bottom 0.12s ease;
 }
-.dip input:checked + .dip-switch::after { bottom: 14px; }
+.dip input:checked + .dip-switch::after { bottom: 14px; background: #111; }
 .dip input:focus-visible + .dip-switch { outline: 2px solid var(--gold); outline-offset: 2px; }
-.dip-text { display: grid; color: #fff; font-weight: 600; font-size: var(--s0); line-height: 1.1; }
-.dip-text small { font-weight: 400; font-size: 11px; opacity: 0.8; }
+.dip-text { display: grid; grid-template-columns: auto auto; justify-content: start; column-gap: 6px; color: #fff; font-weight: 600; font-size: var(--s0); line-height: 1.15; }
+.dip-text small { grid-column: 1 / -1; font-weight: 400; font-size: 11px; opacity: 0.85; }
+.dip-state { font: 700 10px/1 var(--mono); padding: 2px 4px; border-radius: 2px; align-self: center; justify-self: start; }
+.dip input:checked ~ .dip-text .dip-state::before { content: "on"; }
+.dip input:checked ~ .dip-text .dip-state { background: #fff; color: #b5372f; }
+.dip input:not(:checked) ~ .dip-text .dip-state::before { content: "off"; }
+.dip input:not(:checked) ~ .dip-text .dip-state { box-shadow: inset 0 0 0 1px #ffffff80; color: #ffffffb0; }
+.dip input:not(:checked) ~ .dip-text { color: #ffffffa8; }
+.dip:has(input:checked) { background: #00000026; }
 
 /* gold pad buttons */
 .pad-button, .btn {
@@ -259,6 +268,7 @@ input.name-input:focus { box-shadow: none; border-bottom: 1px solid var(--gold);
 .diff td.chg { background: #4a3a14; }
 .diff td.add { background: #173d27; }
 .diff td.del { background: #4a1d1a; }
+.diff td.cal { color: var(--silk-dim); font-style: italic; }
 .diff tr.skip td { text-align: center; color: #5d6a66; padding: 6px; background: repeating-linear-gradient(135deg, transparent 0 6px, #1a201e 6px 12px); }
 
 pre.dump { margin: 0; overflow: auto; max-height: 70vh; font: 13px/1.55 var(--mono); color: var(--silk); }

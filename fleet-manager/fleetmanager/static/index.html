@@ -29,15 +29,16 @@
       </label>
 
       <div class="dips" role="group" aria-label="What to read">
+        <span class="dip-legend" aria-hidden="true">ON<br>▲</span>
         <label class="dip" title="Read the settings with the CLI and save a configuration snapshot. The FC reboots afterwards.">
           <input type="checkbox" id="cli" checked>
           <span class="dip-switch" aria-hidden="true"></span>
-          <span class="dip-text">Config<small>FC reboots</small></span>
+          <span class="dip-text">Config <span class="dip-state" aria-hidden="true"></span><small>FC reboots</small></span>
         </label>
         <label class="dip" title="Read the ESC firmware through the 4-way interface. Needs the battery: take the propellers off.">
           <input type="checkbox" id="esc">
           <span class="dip-switch" aria-hidden="true"></span>
-          <span class="dip-text">ESCs<small>battery on, props off</small></span>
+          <span class="dip-text">ESCs <span class="dip-state" aria-hidden="true"></span><small>battery on, props off</small></span>
         </label>
       </div>
 

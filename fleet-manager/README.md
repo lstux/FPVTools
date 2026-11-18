@@ -17,6 +17,7 @@ python3 -m venv .venv && . .venv/bin/activate
 pip install -e '.[test]'
 fleetmanager serve                # web interface on http://127.0.0.1:8090
 fleetmanager serve --simulate     # no hardware: "Detect drone" plugs three simulated drones in
+fleetmanager serve --host 0.0.0.0 # reachable from your phone on the local network (no login!)
 fleetmanager scan                 # same detection from the terminal, no browser
 fleetmanager scan --no-cli        # MSP only: no config snapshot and no FC reboot
 fleetmanager scan --esc           # also read the ESCs: battery connected, PROPELLERS OFF
@@ -43,6 +44,17 @@ never overwritten**. Automatic values appear in green next to the matching compo
 
 Not readable from the FC, to type in by hand: ELRS version (read it from the radio's Lua script), GPS module
 model, motor/prop/camera/antenna models.
+
+## Calibration values
+
+INAV rewrites some settings by itself at each calibration (`gyro_zero_x/y/z`, `ins_gravity_cmss`). They stay in
+the stored text but do not create a snapshot, and the comparison ignores them unless you press "Count calibration
+values". The list is `VOLATILE_SETTINGS` in `fleetmanager/volatile.py`.
+
+## Photos from a phone
+
+Run `fleetmanager serve --host 0.0.0.0`: it prints the address to open on the phone. The browser shrinks the photo
+to 1600 px and sends it as JPEG, so HEIC pictures from an iPhone work too.
 
 ## Reading the ESCs
 

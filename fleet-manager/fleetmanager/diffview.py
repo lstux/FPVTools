@@ -5,21 +5,28 @@ from __future__ import annotations
 import difflib
 from typing import Any, Dict, List
 
+from .volatile import mask
 
-def side_by_side(a: str, b: str, context: int = 3) -> Dict[str, Any]:
-    """Rows of ``{t, ll, l, rl, r}`` where ``t`` is eq / chg / del / add / skip.
+
+def side_by_side(a: str, b: str, context: int = 3, calibration: bool = False) -> Dict[str, Any]:
+    """Rows of ``{t, ll, l, rl, r}`` where ``t`` is eq / cal / chg / del / add / skip.
+
+    Unless ``calibration`` is true, values the firmware rewrites by itself (see ``volatile``) are
+    compared without their value: a row where only they differ is ``cal`` and counts as unchanged.
 
     ``ll``/``rl`` are 1-based line numbers on the left (a) and right (b); a ``skip`` row carries the
     number of hidden unchanged lines in ``n``. ``context`` < 0 keeps every line.
     """
     left, right = a.splitlines(), b.splitlines()
+    key = (lambda x: x) if calibration else mask
     rows: List[Dict[str, Any]] = []
-    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, left, right, autojunk=False).get_opcodes():
+    matcher = difflib.SequenceMatcher(None, [key(x) for x in left], [key(x) for x in right], autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         for k in range(max(i2 - i1, j2 - j1)):
             li, ri = i1 + k, j1 + k
             has_l, has_r = li < i2, ri < j2
             if tag == "equal":
-                kind = "eq"
+                kind = "eq" if left[li] == right[ri] else "cal"
             else:
                 kind = "chg" if has_l and has_r else ("del" if has_l else "add")
             rows.append(
@@ -33,10 +40,11 @@ def side_by_side(a: str, b: str, context: int = 3) -> Dict[str, Any]:
             )
 
     stats = {k: sum(1 for r in rows if r["t"] == k) for k in ("chg", "add", "del")}
+    calibrated = sum(1 for r in rows if r["t"] == "cal")
     if context >= 0:
         keep = [False] * len(rows)
         for i, row in enumerate(rows):
-            if row["t"] != "eq":
+            if row["t"] not in ("eq", "cal"):
                 for j in range(max(0, i - context), min(len(rows), i + context + 1)):
                     keep[j] = True
         out: List[Dict[str, Any]] = []
@@ -52,4 +60,5 @@ def side_by_side(a: str, b: str, context: int = 3) -> Dict[str, Any]:
         if hidden:
             out.append({"t": "skip", "n": hidden})
         rows = out
-    return {"rows": rows, "stats": stats, "identical": not any(stats.values())}
+    stats["cal"] = calibrated
+    return {"rows": rows, "stats": stats, "identical": not any(stats[k] for k in ("chg", "add", "del"))}

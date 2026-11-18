@@ -19,6 +19,25 @@ def default_data_dir() -> Path:
     return base / "fpvtools" / "fleet-manager"
 
 
+def lan_addresses() -> list:
+    """IPv4 addresses this machine is reachable at on the local network (best effort)."""
+    import socket
+
+    found = set()
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sk:
+            sk.connect(("192.0.2.1", 9))  # no packet is sent: this only picks the outgoing interface
+            found.add(sk.getsockname()[0])
+    except OSError:
+        pass
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            found.add(info[4][0])
+    except OSError:
+        pass
+    return sorted(a for a in found if not a.startswith("127."))
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     p = argparse.ArgumentParser(prog="fleetmanager", description="Catalogue of your FPV drones.")
     p.add_argument("--version", action="version", version="%(prog)s " + __version__)
@@ -34,7 +53,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     s = sub.add_parser("serve", help="run the web interface")
     common(s)
-    s.add_argument("--host", default="127.0.0.1", help="listen address (default: %(default)s)")
+    s.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="listen address (default: %(default)s); 0.0.0.0 to open it from your phone on the local "
+        "network. There is no login: anyone on that network can edit the catalogue",
+    )
     s.add_argument("--http-port", type=int, default=8090, help="listen port (default: %(default)s)")
     s.add_argument(
         "--simulate",
@@ -76,6 +100,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             app = create_app(fleet, args.data_dir / "photos", DemoScanner(), simulated=True)
         else:
             app = create_app(fleet, args.data_dir / "photos")
+        if args.host in ("0.0.0.0", "::"):
+            urls = ["http://%s:%d" % (a, args.http_port) for a in lan_addresses()]
+            print("open from your phone: " + (", ".join(urls) or "http://<this-computer-ip>:%d" % args.http_port))
+            print("warning: no login, anyone on this network can edit the catalogue")
         uvicorn.run(app, host=args.host, port=args.http_port)
         return 0
 

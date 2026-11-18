@@ -88,6 +88,27 @@ function render(...nodes) {
   main().focus({ preventScroll: true });
 }
 
+// Phone photos are large and often HEIC: decode them in the browser (Safari reads HEIC), shrink them
+// and send a JPEG. Falls back to the original file when the browser cannot decode it.
+const PHOTO_MAX = 1600;
+async function preparePhoto(file) {
+  try {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    URL.revokeObjectURL(url);
+    const scale = Math.min(1, PHOTO_MAX / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
+    canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height); // EXIF orientation is applied
+    const blob = await new Promise((ok) => canvas.toBlob(ok, "image/jpeg", 0.85));
+    if (blob) return blob;
+  } catch (_) { /* not decodable here: send it as is */ }
+  return file;
+}
+
 // ---------------------------------------------------------------- hangar
 async function viewHangar() {
   const drones = await api("/api/drones");
@@ -181,11 +202,14 @@ async function viewDrone(id, { powerUp = false } = {}) {
   const specs = h("textarea", { rows: 4, placeholder: "frame: 7 inch\nbattery: 6S2P Li-ion 4000 mAh\nweight: 780 g",
     onchange: (ev) => saveDrone({ specs: textToSpecs(ev.target.value) }) }, specsToText(d.specs));
 
-  const fileInput = h("input", { type: "file", accept: "image/jpeg,image/png,image/webp", hidden: true, onchange: async (ev) => {
+  const fileInput = h("input", { type: "file", accept: "image/*", hidden: true, onchange: async (ev) => {
     const f = ev.target.files[0];
     if (!f) return;
     try {
-      await api(`/api/drones/${id}/photo`, { method: "PUT", headers: { "Content-Type": f.type }, body: f });
+      osd("Uploading the photo…");
+      const photo = await preparePhoto(f);
+      await api(`/api/drones/${id}/photo`, { method: "PUT", headers: { "Content-Type": photo.type || "application/octet-stream" }, body: photo });
+      osd("Photo saved", "ok");
       viewDrone(id);
     } catch (e) { osd(e.message, "error"); }
   } });
@@ -350,10 +374,10 @@ async function viewSnapshot(id) {
     s.status_text ? h("section", { class: "board panel" }, h("h2", {}, "status"), h("pre", { class: "dump" }, s.status_text)) : null);
 }
 
-async function viewDiff(a, b, full = false) {
-  const d = await api(`/api/snapshots/diff?a=${a}&b=${b}&context=${full ? -1 : 3}`);
+async function viewDiff(a, b, full = false, calibration = false) {
+  const d = await api(`/api/snapshots/diff?a=${a}&b=${b}&context=${full ? -1 : 3}&calibration=${calibration}`);
   const label = (s) => `#${s.id}  ${fmtDate(s.taken_at)}  ${s.firmware || ""} ${s.version || ""}`;
-  const cell = (t, side) => (t === "chg" ? "chg" : t === "add" && side === "r" ? "add" : t === "del" && side === "l" ? "del" : "");
+  const cell = (t, side) => (t === "cal" ? "cal" : t === "chg" ? "chg" : t === "add" && side === "r" ? "add" : t === "del" && side === "l" ? "del" : "");
   const rows = d.rows.map((r) => r.t === "skip"
     ? h("tr", { class: "skip" }, h("td", { colspan: 4 }, `${r.n} unchanged line${r.n === 1 ? "" : "s"}`))
     : h("tr", {},
@@ -362,13 +386,17 @@ async function viewDiff(a, b, full = false) {
   render(
     h("a", { class: "back", href: `#/drone/${d.b.drone_id}` }, "‹ Back to the drone"),
     h("div", { class: "page-head" }, h("h1", {}, "What changed"),
-      h("button", { class: "btn ghost", onclick: () => viewDiff(a, b, !full) }, full ? "Show changes only" : "Show whole files")),
+      h("div", { class: "actions", style: "display:flex;gap:8px;flex-wrap:wrap" },
+        h("button", { class: "btn ghost", "aria-pressed": String(calibration), onclick: () => viewDiff(a, b, full, !calibration) },
+          calibration ? "Ignore calibration values" : "Count calibration values"),
+        h("button", { class: "btn ghost", onclick: () => viewDiff(a, b, !full, calibration) }, full ? "Show changes only" : "Show whole files"))),
     h("div", { class: "diff-stats" },
       d.identical ? h("span", {}, led("ok"), "Same configuration") : [
         h("span", {}, led("todo"), `${d.stats.chg} changed`),
         h("span", {}, led("ok"), `${d.stats.add} added`),
         h("span", {}, led("error"), `${d.stats.del} removed`),
-      ]),
+      ],
+      !calibration && d.stats.cal ? h("span", { class: "dim" }, led("stale"), `${d.stats.cal} calibration value${d.stats.cal === 1 ? "" : "s"} recomputed by the FC, ignored`) : null),
     h("section", { class: "board panel" },
       h("div", { class: "diff-head" }, h("div", {}, label(d.a)), h("div", {}, label(d.b))),
       h("div", { class: "diff-scroll" }, h("table", { class: "diff" },

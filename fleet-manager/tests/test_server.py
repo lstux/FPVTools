@@ -117,3 +117,22 @@ def test_scan_can_read_the_escs(env):
     esc = next(c for c in d["components"] if c["type"] == "esc")
     assert esc["hint"] == "1x Bluejay 0.21 (EFM8BB21x)"
     assert d["detected"]["escs"][0]["firmware"] == "Bluejay"
+
+
+def test_diff_calibration_parameter(env):
+    client, state, _ = env
+    base = DIFF_ALL.replace("batch end", "set gyro_zero_x = 1\nbatch end")
+    state["diff"] = base
+    a = scan(client)["snapshot_id"]
+    state["diff"] = base.replace("= 1\n", "= 2\n").replace("DSHOT600", "DSHOT300")
+    b = scan(client)["snapshot_id"]
+    plain = client.get("/api/snapshots/diff", params={"a": a, "b": b}).json()
+    assert plain["stats"]["chg"] == 1 and plain["stats"]["cal"] == 1
+    full = client.get("/api/snapshots/diff", params={"a": a, "b": b, "calibration": "true"}).json()
+    assert full["stats"]["chg"] == 2
+
+
+def test_lan_addresses_is_best_effort():
+    from fleetmanager.__main__ import lan_addresses
+
+    assert all(not a.startswith("127.") for a in lan_addresses())

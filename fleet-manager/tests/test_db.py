@@ -122,3 +122,25 @@ def test_register_is_one_transaction(fleet, monkeypatch):
     with pytest.raises(RuntimeError):
         fleet.register(det.info, det.diff_text, det.status_text)
     assert fleet.list_drones() == [], "a failed registration must not leave a half-created drone"
+
+
+INAV_CAL = DIFF_ALL.replace("batch end", "set gyro_zero_x = 12\nset gyro_zero_y = -3\nset ins_gravity_cmss =  981.2\n\nbatch end")
+
+
+def test_calibration_values_rewritten_by_the_fc_do_not_create_snapshots(fleet):
+    det = detection(diff=INAV_CAL)
+    first = fleet.register(det.info, det.diff_text, det.status_text)
+    recal = detection(diff=INAV_CAL.replace("= 12", "= 15").replace("981.2", "979.8"))
+    assert not fleet.register(recal.info, recal.diff_text, recal.status_text)["changed"]
+    real = detection(diff=INAV_CAL.replace("DSHOT600", "DSHOT300").replace("= 12", "= 9"))
+    assert fleet.register(real.info, real.diff_text, real.status_text)["changed"]
+    last = fleet.get_snapshot(fleet.list_snapshots(first["drone_id"])[0]["id"])
+    assert "set gyro_zero_x = 9" in last["diff_text"], "the raw values are still stored"
+
+
+def test_snapshots_hashed_by_an_older_version_are_not_duplicated(fleet):
+    det = detection(diff=INAV_CAL)
+    res = fleet.register(det.info, det.diff_text, det.status_text)
+    fleet._db.execute("UPDATE snapshot SET hash = 'old-raw-sha256' WHERE id = ?", (res["snapshot_id"],))
+    again = detection(diff=INAV_CAL.replace("= 12", "= 13"))
+    assert not fleet.register(again.info, again.diff_text, again.status_text)["changed"]
