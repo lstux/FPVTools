@@ -354,7 +354,17 @@ function historyPanel(d) {
       h("div", { class: "snap-main" },
         h("span", { class: "snap-date" }, fmtDate(s.taken_at), i === 0 ? h("span", { class: "dim", style: "font-weight:400" }, "  current") : null),
         h("span", { class: "snap-meta" }, `${s.firmware || "?"} ${s.version || ""}`)),
-      h("a", { href: `#/snapshot/${s.id}` }, "Open"));
+      h("div", { class: "snap-actions" },
+        h("a", { href: `#/snapshot/${s.id}` }, "Open"),
+        h("button", { class: "link-btn danger", "aria-label": `Delete the configuration of ${fmtDate(s.taken_at)}`, onclick: async () => {
+          const what = i === 0 ? "the current configuration (the next detection will save it again)" : "this configuration";
+          if (!confirm(`Delete ${what}, saved ${fmtDate(s.taken_at)}?`)) return;
+          try {
+            await api(`/api/snapshots/${s.id}`, { method: "DELETE" });
+            osd("Configuration deleted", "ok");
+            viewDrone(d.id);
+          } catch (e) { osd(e.message, "error"); }
+        } }, "Delete")));
   });
   if (snaps.length > 1) { toggle(snaps[1].id); toggle(snaps[0].id); }
   return h("section", { class: "board panel" },

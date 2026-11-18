@@ -208,4 +208,9 @@ def create_app(fleet: Fleet, photos_dir: Path, scanner: Scanner = scan_port, sim
             raise HTTPException(404, "unknown snapshot")
         return s
 
+    @app.delete("/api/snapshots/{snapshot_id}", status_code=204)
+    def delete_snapshot(snapshot_id: int) -> None:
+        if not fleet.delete_snapshot(snapshot_id):
+            raise HTTPException(404, "unknown snapshot")
+
     return app

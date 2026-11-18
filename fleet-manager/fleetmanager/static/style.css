@@ -251,6 +251,10 @@ input.name-input:focus { box-shadow: none; border-bottom: 1px solid var(--gold);
 .snap-main { display: grid; gap: 2px; }
 .snap-date { font-weight: 600; }
 .snap-meta { font-family: var(--mono); font-size: 12px; color: var(--silk-dim); }
+.snap-actions { display: flex; gap: 14px; align-items: center; }
+.link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--silk-dim); cursor: pointer; }
+.link-btn:hover { text-decoration: underline; text-underline-offset: 3px; }
+.link-btn.danger:hover { color: var(--led-red); }
 .history-bar { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
 
 /* diff */

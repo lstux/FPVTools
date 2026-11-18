@@ -136,3 +136,17 @@ def test_lan_addresses_is_best_effort():
     from fleetmanager.__main__ import lan_addresses
 
     assert all(not a.startswith("127.") for a in lan_addresses())
+
+
+def test_delete_snapshot(env):
+    client, state, _ = env
+    first = scan(client)
+    state["diff"] = DIFF_ALL.replace("DSHOT600", "DSHOT300")
+    second = scan(client)
+    assert client.delete("/api/snapshots/%d" % first["snapshot_id"]).status_code == 204
+    assert client.delete("/api/snapshots/%d" % first["snapshot_id"]).status_code == 404
+    snaps = client.get("/api/drones/%d" % first["drone_id"]).json()["snapshots"]
+    assert [s["id"] for s in snaps] == [second["snapshot_id"]]
+    # deleting the latest one: the next detection saves the current configuration again
+    assert client.delete("/api/snapshots/%d" % second["snapshot_id"]).status_code == 204
+    assert scan(client)["changed"]

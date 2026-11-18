@@ -267,6 +267,10 @@ class Fleet:
             ).fetchall()
         return [_row(r) for r in rows]
 
+    def delete_snapshot(self, snapshot_id: int) -> bool:
+        with self._lock, self._db:
+            return self._db.execute("DELETE FROM snapshot WHERE id = ?", (snapshot_id,)).rowcount > 0
+
     def get_snapshot(self, snapshot_id: int) -> Optional[Dict[str, Any]]:
         with self._lock:
             return _row(self._db.execute("SELECT * FROM snapshot WHERE id = ?", (snapshot_id,)).fetchone())
