@@ -281,7 +281,7 @@ def read_esc_info(ser, info: Dict[str, Any], timeout: float) -> None:
     failed = [e["index"] for e in res["escs"] if e.get("error")]
     if failed:
         info["warnings"].append(
-            "ESC %s did not answer (battery connected? the ESCs are not powered by USB)"
+            "ESC %s did not answer: battery connected? (the ESCs are not powered by USB)"
             % ", ".join(str(i) for i in failed)
         )
 

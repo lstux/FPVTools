@@ -46,6 +46,23 @@ SILABS_LAYOUT_SIZE = 0x70
 # AM32 EEPROM
 AM32_LAYOUT_SIZE = 0xB0
 
+# Timings from esc-configurator (Containers/App and FourWay.js): the ESCs need time to boot after the
+# switch to the 4-way interface (longer when they play their start-up melody), and connecting to an ESC
+# bootloader is retried 5 times, 250 ms apart. Read at call time so that the tests can set them to 0.
+ESC_BOOT_DELAY = 1.2
+ESC_CONNECT_RETRIES = 5
+ESC_RETRY_DELAY = 0.25
+
+ACK_NAMES = {
+    0x01: "unknown error",
+    0x02: "invalid command",
+    0x03: "CRC error",
+    0x04: "verify error",
+    0x08: "invalid channel",
+    0x09: "invalid parameter",
+    0x0F: "the ESC bootloader did not answer",
+}
+
 
 class FourWayError(Exception):
     pass
@@ -127,17 +144,26 @@ def _ascii(b: bytes) -> str:
     return b.split(b"\x00")[0].decode("ascii", "replace").strip()
 
 
-def read_esc(fw: FourWay, index: int, retries: int = 3) -> Dict[str, Any]:
+def _connect_error(e: Exception) -> str:
+    if isinstance(e, FourWayAck):
+        return "ack 0x%02X, %s" % (e.ack, ACK_NAMES.get(e.ack, "unknown code"))
+    return str(e)
+
+
+def read_esc(fw: FourWay, index: int, retries: Optional[int] = None) -> Dict[str, Any]:
     """Identify one ESC (0-based ``index``). Raises FourWayError if it does not answer."""
+    retries = ESC_CONNECT_RETRIES if retries is None else retries
     last: Optional[Exception] = None
-    for _ in range(retries):
+    for attempt in range(retries):
+        if attempt:
+            time.sleep(ESC_RETRY_DELAY)
         try:
             info = fw.request(CMD_INIT_FLASH, bytes([index]), 0, timeout=2.0).params
             break
         except FourWayError as e:  # ESC not (yet) in its bootloader: try again
             last = e
     else:
-        raise FourWayError(str(last))
+        raise FourWayError("no answer after %d tries (%s)" % (retries, _connect_error(last)))
     if len(info) < 4:
         raise FourWayError("short device info")
     signature = info[1] << 8 | info[0]
@@ -251,12 +277,13 @@ def read_escs(ser, msp_timeout: float = 1.0, timeout: float = 1.0) -> Dict[str, 
     try:
         interface["protocol"] = fw.request(CMD_PROTOCOL_VERSION).params[0]
         interface["name"] = _ascii(fw.request(CMD_INTERFACE_NAME).params)
+        time.sleep(ESC_BOOT_DELAY)  # let the ESCs boot before talking to their bootloaders
         for i in range(count):
             try:
                 entered.append(i)
                 escs.append(read_esc(fw, i))
             except FourWayError as e:
-                escs.append({"index": i + 1, "firmware": "unknown", "error": "no answer (battery connected?)" if not isinstance(e, FourWayAck) else str(e)})
+                escs.append({"index": i + 1, "firmware": "unknown", "error": str(e)})
     finally:
         for i in entered:  # let each ESC run its firmware again
             try:

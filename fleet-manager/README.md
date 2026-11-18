@@ -51,6 +51,9 @@ ESC's bootloader and EEPROM (read commands only), tells each ESC to run its firm
 The ESC lines are also part of the saved snapshot text, so flashing an ESC creates a new snapshot.
 
 * **The ESCs are powered by the battery, not by USB.** Connect it, and **take the propellers off**.
+* Like esc-configurator, the app waits 1.2 s for the ESCs to boot, then tries each ESC up to 5 times, 250 ms
+  apart. An ESC that still does not answer is listed with the FC's answer (e.g. `ack 0x0F, the ESC bootloader
+  did not answer`).
 * Recognised: BLHeli_S and Bluejay (SiLabs EFM8BB10/BB21/BB51), AM32 (STM32F051 and the ARM64K signature).
   BLHeli_32 is proprietary: it shows up as "not AM32", without a version. Other MCUs are listed with their raw signature.
 * Protocol and memory layouts come from the Betaflight source (`serial_4way.c`) and esc-configurator

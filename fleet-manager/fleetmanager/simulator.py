@@ -62,7 +62,8 @@ def _pad(text, n):
     return text.encode().ljust(n, b" ")[:n]
 
 
-def bluejay_esc(name="Bluejay (BETA)", main=0, sub=21, signature=0xE8B2, responds=True):
+def bluejay_esc(name="Bluejay (BETA)", main=0, sub=21, signature=0xE8B2, responds=True, slow=0):
+    """``slow``: number of connection attempts refused before the ESC answers (still booting)."""
     """A SiLabs EFM8BB21 ESC as the bootloader shows it (layout from esc-configurator)."""
     mem = bytearray(b"\xff" * 0x10000)
     data = bytearray(0x70)
@@ -71,7 +72,7 @@ def bluejay_esc(name="Bluejay (BETA)", main=0, sub=21, signature=0xE8B2, respond
     data[0x50:0x60] = _pad("#BLHELI$EFM8B21#", 16)
     data[0x60:0x70] = _pad(name, 16)
     mem[0x1A00:0x1A70] = data
-    return {"sig": signature, "mode": 1, "pin": 0, "mem": mem, "responds": responds}
+    return {"sig": signature, "mode": 1, "pin": 0, "mem": mem, "responds": responds, "slow": slow}
 
 
 def am32_esc(main=2, sub=16, name="AM32", filename=b"TEKKO32_F051", pin=0x02):
@@ -224,7 +225,10 @@ class FakeFC:
                     continue
                 esc = self.escs[idx]
                 self.selected = idx
-                if esc["responds"]:
+                if esc.get("slow", 0) > 0:
+                    esc["slow"] -= 1
+                    self._fourway_reply(cmd, address, bytes([0, 0, 100, 1]), 0x0F)
+                elif esc["responds"]:
                     self._fourway_reply(cmd, address, bytes([esc["sig"] & 0xFF, esc["sig"] >> 8, esc["pin"], esc["mode"]]))
                 else:
                     self._fourway_reply(cmd, address, bytes([0, 0, 100, 1]), 0x0F)

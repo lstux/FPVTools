@@ -42,7 +42,7 @@ def test_read_escs_identifies_each_firmware_and_restores_the_fc():
     assert (e1["layout"], e1["mcu_tag"], e1["name"]) == ("#S_H_90#", "#BLHELI$EFM8B21#", "Bluejay (BETA)")
     assert e2["version"] == "0.19"
     assert (e3["firmware"], e3["version"], e3["mcu"], e3["file_name"]) == ("AM32", "2.16", "STM32F051", "TEKKO32_F051")
-    assert e4["error"] and "battery" in e4["error"]
+    assert e4["error"] == "no answer after 5 tries (ack 0x0F, the ESC bootloader did not answer)"
     assert fc.left_4way and not fc.in_4way, "the 4-way interface must be left"
     assert fc.reset_log == [0, 1, 2, 3], "every ESC is told to run its firmware again"
 
@@ -155,3 +155,25 @@ def test_flashing_an_esc_creates_a_new_snapshot_and_updates_the_hint(tmp_path):
     esc = next(c for c in fleet.get_drone(first["drone_id"])["components"] if c["type"] == "esc")
     assert esc["hint"] == "2x Bluejay 0.22 (EFM8BB21x)"
     fleet.close()
+
+
+def test_slow_escs_are_retried_and_the_escs_get_time_to_boot(monkeypatch):
+    from fleetmanager import esc as esc_mod
+
+    sleeps = []
+    monkeypatch.setattr(esc_mod.time, "sleep", lambda s: sleeps.append(s))
+    monkeypatch.setattr(esc_mod, "ESC_BOOT_DELAY", 1.2)
+    monkeypatch.setattr(esc_mod, "ESC_RETRY_DELAY", 0.25)
+    # ESC 3 and 4 still booting: they refuse 2 and 4 connection attempts
+    fc = fc_with(bluejay_esc(), bluejay_esc(), bluejay_esc(slow=2), bluejay_esc(slow=4))
+    res = read_escs(fc, 0.2, 0.2)
+    assert [e.get("error") for e in res["escs"]] == [None, None, None, None]
+    assert [e["firmware"] for e in res["escs"]] == ["Bluejay"] * 4
+    assert sleeps[0] == 1.2, "wait for the ESCs to boot before the first connection"
+    assert sleeps.count(0.25) == 2 + 4, "one pause before each new attempt"
+
+
+def test_an_esc_slower_than_the_retries_is_reported_with_the_fc_answer():
+    res = read_escs(fc_with(bluejay_esc(), bluejay_esc(slow=5)), 0.2, 0.2)
+    assert res["escs"][0]["firmware"] == "Bluejay"
+    assert res["escs"][1]["error"].startswith("no answer after 5 tries (ack 0x0F")
