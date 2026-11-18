@@ -150,3 +150,12 @@ def test_delete_snapshot(env):
     # deleting the latest one: the next detection saves the current configuration again
     assert client.delete("/api/snapshots/%d" % second["snapshot_id"]).status_code == 204
     assert scan(client)["changed"]
+
+
+def test_static_files_are_revalidated_by_the_browser(env):
+    client, _, _ = env
+    for path in ("/", "/static/app.js", "/static/style.css"):
+        assert client.get(path).headers["cache-control"] == "no-cache"
+    first = client.get("/static/app.js")
+    again = client.get("/static/app.js", headers={"if-none-match": first.headers["etag"]})
+    assert again.status_code == 304

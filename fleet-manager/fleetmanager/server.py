@@ -24,6 +24,16 @@ STATIC_DIR = Path(__file__).parent / "static"
 MAX_PHOTO_BYTES = 10 * 1024 * 1024
 PHOTO_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
 
+class RevalidatedFiles(StaticFiles):
+    """Static files the browser must revalidate (ETag, so a 304 when unchanged): after a ``git pull`` the
+    new app.js / style.css are picked up at once instead of an old cached copy."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 Scanner = Callable[[Optional[str], bool, bool], Detection]
 
 
@@ -63,7 +73,7 @@ def create_app(fleet: Fleet, photos_dir: Path, scanner: Scanner = scan_port, sim
     def index() -> FileResponse:
         return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"})
 
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.mount("/static", RevalidatedFiles(directory=STATIC_DIR), name="static")
     app.mount("/photos", StaticFiles(directory=photos_dir), name="photos")
 
     def drone_or_404(drone_id: int) -> Dict[str, Any]:
